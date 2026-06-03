@@ -61,6 +61,8 @@
   <header>
     <div class="brand"><a href="index.html" style="color:#9DB4D4;text-decoration:none;margin-right:8px">‹ 首页</a><span id="hTitle">HALO · 老板总览</span></div>
     <div class="ctrl">
+      <span id="updatedAt" style="color:#9DB4D4;font-size:12px;margin-right:4px"></span>
+      <button class="lang" id="refreshBtn" onclick="load()" style="margin-right:6px">🔄 刷新</button>
       <input type="month" id="theMonth">
       <button class="lang" id="langBtn" onclick="toggleLang()">EN</button>
     </div>
@@ -101,8 +103,10 @@
 </div>
 
 <script>
-/* ====== 老板总览读数据:用 Google Sheet 发布的 CSV 网址 ====== */
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
+/* ====== 老板总览读数据:用 Google Sheet 实时导出 CSV(几乎即时) ====== */
+const SHEET_ID = "1xhe2cYBD5CYuOijUzsViY4cs1uWWsY9ohQbgvBbvtBI";
+const SHEET_GID = "1113972371";
+const CSV_URL = "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/export?format=csv&gid="+SHEET_GID;
 /* ============================================================ */
 
 const TX={
@@ -161,10 +165,16 @@ function genDemo(){
 function load(){
   if(!CSV_URL){allRows=genDemo();el('demoBanner').style.display='';render();return}
   el('demoBanner').style.display='none';
-  fetch(CSV_URL+'&t='+Date.now())
+  const rb=el('refreshBtn'); if(rb)rb.textContent='⏳ …';
+  fetch(CSV_URL+'&_='+Date.now(),{cache:'no-store'})
     .then(r=>r.text())
-    .then(txt=>{ allRows=parseCSV(txt); render(); })
-    .catch(()=>{ allRows=genDemo(); el('demoBanner').style.display=''; render(); });
+    .then(txt=>{ allRows=parseCSV(txt); render(); stamp(); })
+    .catch(()=>{ allRows=genDemo(); el('demoBanner').style.display=''; render(); if(rb)rb.textContent='🔄 刷新'; });
+}
+function stamp(){
+  const rb=el('refreshBtn'); if(rb)rb.textContent='🔄 刷新';
+  const u=el('updatedAt');
+  if(u){ const t=new Date(); u.textContent='更新于 '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'); }
 }
 function parseCSV(txt){
   const lines=splitCSV(txt);
