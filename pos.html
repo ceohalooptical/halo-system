@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Halo POS</title>
+<style>
+  :root{
+    --navy:#0B2447; --navy2:#0F2E5A; --gold:#D4A24C; --cream:#F5F1E8;
+    --ink:#1F2937; --line:#E3DECF; --muted:#8A8678; --ok:#1D9E75; --red:#D85A30; --blue:#185FA5;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    background:var(--cream);color:var(--ink);line-height:1.5;padding-bottom:50px}
+  .wrap{max-width:480px;margin:0 auto}
+  header{background:var(--navy);padding:14px 18px 12px;position:sticky;top:0;z-index:10}
+  .htop{display:flex;align-items:center;justify-content:space-between}
+  header .brand{color:var(--gold);font-size:14px;font-weight:600;letter-spacing:.5px}
+  .lang{background:var(--navy2);border:1px solid #2A4570;color:#fff;border-radius:20px;
+    padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .daterow{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .daterow label{color:#9DB4D4;font-size:12px}
+  .daterow input{background:var(--navy2);border:1px solid #2A4570;color:#fff;border-radius:7px;
+    padding:5px 9px;font-size:13px;font-family:inherit}
+  .daterow .who{color:#9DB4D4;font-size:12px;margin-left:auto}
+  .tabbar{display:flex;background:var(--navy2)}
+  .tabbar button{flex:1;background:none;border:none;color:#9DB4D4;font-size:14px;
+    padding:13px 0;cursor:pointer;border-bottom:3px solid transparent;font-family:inherit}
+  .tabbar button.on{color:var(--gold);border-bottom-color:var(--gold);font-weight:600}
+  .panel{padding:18px;display:none}
+  .panel.on{display:block}
+  .label{font-size:13px;color:var(--muted);margin:16px 0 8px;font-weight:600}
+  .label:first-child{margin-top:2px}
+  .grid{display:grid;gap:8px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px 4px;
+    text-align:center;font-size:13px;cursor:pointer;transition:.12s;user-select:none;color:var(--ink)}
+  .chip:active{transform:scale(.96)}
+  .chip.sel{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+  .chip.gold.sel{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+  .chip.blue.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .chip.big{padding:16px 4px;font-size:14px;font-weight:600}
+  .lumora{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;cursor:pointer;user-select:none}
+  .lumora.on{border-color:var(--gold);background:#FBF6EC}
+  .lumora .box{width:22px;height:22px;border:2px solid var(--muted);border-radius:6px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+  .lumora.on .box{background:var(--gold);border-color:var(--gold)}
+  .lumora .t{font-size:14px;font-weight:600}.lumora .s{font-size:11px;color:var(--muted)}
+  .amt{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px 15px;
+    font-size:22px;font-weight:600;color:var(--ink);background:#fff;font-family:inherit}
+  .amt:focus,.note:focus{outline:none;border-color:var(--gold)}
+  .note{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+    font-size:14px;color:var(--ink);background:#fff;font-family:inherit;resize:none}
+  .payline{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .payline select,.payline input{border:1px solid var(--line);border-radius:9px;padding:10px;
+    font-size:14px;font-family:inherit;background:#fff}
+  .payline select{flex:1.2}.payline input{flex:1;font-weight:600}
+  .payline .x{background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:0 4px}
+  .addpay{background:none;border:1px dashed var(--line);color:var(--muted);border-radius:9px;
+    padding:9px;font-size:13px;width:100%;cursor:pointer;font-family:inherit}
+  .meta{font-size:12px;color:var(--muted);margin-top:7px}
+  .save{width:100%;background:var(--gold);color:var(--navy);border:none;border-radius:12px;
+    padding:15px;font-size:16px;font-weight:700;cursor:pointer;margin-top:18px;font-family:inherit}
+  .save:active{transform:scale(.98)}.save:disabled{opacity:.4;cursor:not-allowed}
+  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(80px);
+    background:var(--ok);color:#fff;padding:12px 24px;border-radius:30px;font-size:14px;
+    font-weight:600;transition:.3s;z-index:50;opacity:0}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .foot{text-align:center;font-size:12px;color:var(--muted);margin-top:12px}
+  .hide{display:none}
+  .row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px}
+  .row .top{display:flex;justify-content:space-between;align-items:center}
+  .row .tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px}
+  .tag.new{background:#E6F1FB;color:var(--blue)} .tag.taken{background:#E1F5EE;color:var(--ok)}
+  .tag.svc{background:#FAEEDA;color:#854F0B} .tag.other{background:#F1EFE8;color:var(--muted)}
+  .row .amt2{font-size:15px;font-weight:600}
+  .row .det{font-size:12px;color:var(--muted);margin-top:3px}
+  .row .nt{font-size:13px;color:var(--ink);margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
+  .del{background:none;border:none;color:var(--red);font-size:19px;cursor:pointer;padding:2px 4px;margin-left:6px}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:36px 0}
+  .seg{display:flex;gap:6px;margin-bottom:16px}
+  .seg button{flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px;
+    font-size:14px;cursor:pointer;font-family:inherit;color:var(--muted)}
+  .seg button.on{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+  .report{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:14px}
+  .report .ttl{font-weight:700;color:var(--navy);font-size:15px}
+  .report .dt{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .rline{display:flex;justify-content:space-between;padding:5px 0}
+  .rline.hl{font-weight:700}.rline.hl b{color:var(--gold)}
+  .rsub{padding-left:14px;color:var(--muted);font-size:13px}
+  .rsec{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-weight:600;color:var(--navy)}
+  .clist{font-size:13px;margin-top:6px}
+  .clist li{margin:5px 0;padding-left:4px;list-style:none;border-left:2px solid var(--line);padding-left:9px}
+  .lumora-stat{background:#FBF6EC;border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-top:10px}
+  .lumora-stat .t{font-size:12px;color:#854F0B;font-weight:600}
+  .lumora-stat .v{font-size:18px;font-weight:700;color:var(--navy);margin-top:2px}
+  .copy{background:var(--navy);color:#fff;border:none;border-radius:10px;padding:12px;width:100%;
+    font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="htop">
+      <div class="brand"><a href="index.html" style="color:#9DB4D4;text-decoration:none;margin-right:8px">‹ 首页</a>HALO · <select id="hStore" onchange="refresh()" style="background:var(--navy2);border:1px solid #2A4570;color:var(--gold);border-radius:6px;padding:3px 6px;font-size:13px;font-weight:600;font-family:inherit"></select></div>
+      <button class="lang" onclick="toggleLang()" id="langBtn">EN</button>
+    </div>
+    <div class="daterow">
+      <label id="lblDate">日期</label>
+      <input type="date" id="theDate" onchange="refresh()">
+      <input id="staffName" placeholder="店员名" value="Ah Hui" style="background:var(--navy2);border:1px solid #2A4570;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px;font-family:inherit;margin-left:auto;width:90px">
+      <span id="syncDot" style="font-size:11px;color:#9DB4D4" title="同步状态">●</span>
+    </div>
+  </header>
+
+  <div class="tabbar">
+    <button class="on" onclick="tab('entry',this)" id="tbEntry">记录交易</button>
+    <button onclick="tab('list',this)" id="tbList">今日清单</button>
+    <button onclick="tab('report',this)" id="tbReport">汇总报告</button>
+  </div>
+
+  <!-- ENTRY -->
+  <div class="panel on" id="entry">
+    <div class="label" id="lblVisit">客人来意</div>
+    <div class="grid g2" id="visits"></div>
+
+    <div id="custWrap">
+      <div class="label" id="lblCust">客户身份</div>
+      <div class="grid g2" id="custs"></div>
+    </div>
+
+    <div id="prodWrap" class="hide">
+      <div class="label" id="lblProd">产品类别</div>
+      <div class="grid g3" id="prods"></div>
+      <div id="lumoraWrap" class="hide" style="margin-top:8px">
+        <div class="lumora" id="lumoraTog" onclick="toggleLumora()">
+          <div class="box" id="lumoraBox"></div>
+          <div><div class="t" id="lumoraT">Lumora 镜片</div><div class="s" id="lumoraS">高毛利主力 · 单独统计</div></div>
+        </div>
+      </div>
+      <div class="label" id="lblSrc">客人来源</div>
+      <div class="grid g2" id="srcs"></div>
+      <div class="label" id="lblSale">销售金额 (RM)</div>
+      <input class="amt" id="saleAmt" type="number" inputmode="decimal" placeholder="0">
+    </div>
+
+    <div id="payWrap" class="hide">
+      <div class="label" id="lblPay">收款 (可分多笔)</div>
+      <div id="payLines"></div>
+      <button class="addpay" onclick="addPayLine()" id="addPayBtn">+ 加一笔收款</button>
+    </div>
+
+    <div class="label" id="lblNote">备注 / 跟进</div>
+    <textarea class="note" id="note" rows="2" placeholder=""></textarea>
+
+    <button class="save" id="saveBtn" onclick="saveTxn()">保存这笔交易</button>
+    <div class="foot" id="entryFoot">今天已记录 0 笔</div>
+  </div>
+
+  <!-- LIST -->
+  <div class="panel" id="list"><div id="listbox"></div></div>
+
+  <!-- REPORT -->
+  <div class="panel" id="report">
+    <div class="seg">
+      <button class="on" onclick="repMode('day',this)" id="rmDay">本日</button>
+      <button onclick="repMode('month',this)" id="rmMonth">本月</button>
+    </div>
+    <div class="report" id="repBox"></div>
+    <button class="copy" id="copyBtn" onclick="copyReport()">复制报告文本</button>
+  </div>
+</div>
+<div class="toast" id="toast">已保存 ✓</div>
+
+<script>
+/* ====== 配置区:把你部署 Apps Script 拿到的网址填进这里 ====== */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyce2NI8OYz8xdcS0AifHKzRKz13phJrj_rLiq0lIe9vO38FJZtyQmx42GiR_vzPJFG/exec";  /* 例: "https://script.google.com/macros/s/AKfy.../exec" 留空则只在本机暂存 */
+const STORES = ["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+/* ============================================================ */
+
+const T={
+  zh:{date:"日期",entry:"记录交易",list:"今日清单",report:"汇总报告",visit:"客人来意",
+    cust:"客户身份",prod:"产品类别",src:"客人来源",sale:"销售金额 (RM)",pay:"收款 (可分多笔)",
+    note:"备注 / 跟进",save:"保存这笔交易",addpay:"+ 加一笔收款",lumoraT:"Lumora 镜片",
+    lumoraS:"高毛利主力 · 单独统计",foot:"今天已记录 N 笔",day:"本日",month:"本月",copy:"复制报告文本",
+    notePh:"例:框断做老花 / 比价没买叫他去Juru看",
+    visits:["新单 下订","取货 Taken","售后 Service","未成交 Other"],
+    custs:["新客 New","老客 Regular"],
+    prods:["Single Vision","Multifocal","隐形眼镜","儿童控度","太阳镜","纯配框","纯配片","FOC 公益","其他"],
+    srcs:["线上","Google","Walk in","老客/转介","活动券"],
+    ways:["现金 Cash","转账 Transfer","Terminal","TNG","Boost","GrabPay","DuitNow","其他"],
+    rSale:"今日销售 Sale",rColl:"今日收款 Collection",rUtdS:"累积销售 UTD Sale",rUtdC:"累积收款 UTD Collection",
+    rCust:"客户 CUSTOMER",rTaken:"取货 TAKEN",rSvc:"售后 SERVICE",rOther:"未成交 Other",
+    rNotes:"客人记录 / 跟进",lumoraDay:"Lumora(本日)",lumoraMonth:"Lumora(本月)",pcs:"副",
+    byProd:"产品类别统计",bySrc:"客人来源统计",total:"合计",
+    copied:"已复制 ✓",saved:"已保存 ✓"},
+  en:{date:"Date",entry:"New Entry",list:"Today",report:"Report",visit:"Visit type",
+    cust:"Customer",prod:"Product",src:"Source",sale:"Sale amount (RM)",pay:"Payment (split ok)",
+    note:"Note / follow-up",save:"Save transaction",addpay:"+ Add payment",lumoraT:"Lumora lens",
+    lumoraS:"High-margin · tracked separately",foot:"N entries today",day:"Day",month:"Month",copy:"Copy report text",
+    notePh:"e.g. frame broke, made reading glasses / compared price, told to visit Juru",
+    visits:["New order","Taken","Service","No-buy Other"],
+    custs:["New","Regular"],
+    prods:["Single Vision","Multifocal","Contact Lens","Myokids","Sunglasses","Frame only","Lens only","FOC","Others"],
+    srcs:["Online","Google","Walk in","Regular/Ref","Voucher"],
+    ways:["Cash","Bank Transfer","Terminal","TNG","Boost","GrabPay","DuitNow","Others"],
+    rSale:"Sale today",rColl:"Collection today",rUtdS:"UTD Sale",rUtdC:"UTD Collection",
+    rCust:"CUSTOMER",rTaken:"TAKEN",rSvc:"SERVICE",rOther:"No-buy",
+    rNotes:"Customer notes / follow-up",lumoraDay:"Lumora (day)",lumoraMonth:"Lumora (month)",pcs:"pcs",
+    byProd:"Product breakdown",bySrc:"Source breakdown",total:"Total",
+    copied:"Copied ✓",saved:"Saved ✓"}
+};
+let lang='zh';
+let selVisit=null,selCust=null,selProd=null,selSrc=null,isLumora=false;
+let payLines=[{way:0,amt:''}];
+let txns=[];
+let curRep='day';
+const VISIT_KEYS=['new','taken','service','other'];
+
+const el=id=>document.getElementById(id);
+const L=()=>T[lang];
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+el('theDate').value=todayStr();
+
+function toggleLang(){lang=lang==='zh'?'en':'zh';el('langBtn').textContent=lang==='zh'?'EN':'中';applyLang();render();refresh()}
+function applyLang(){
+  const t=L();
+  el('lblDate').textContent=t.date;el('tbEntry').textContent=t.entry;el('tbList').textContent=t.list;
+  el('tbReport').textContent=t.report;el('lblVisit').textContent=t.visit;el('lblCust').textContent=t.cust;
+  el('lblProd').textContent=t.prod;el('lblSrc').textContent=t.src;el('lblSale').textContent=t.sale;
+  el('lblPay').textContent=t.pay;el('lblNote').textContent=t.note;el('saveBtn').textContent=t.save;
+  el('addPayBtn').textContent=t.addpay;el('lumoraT').textContent=t.lumoraT;el('lumoraS').textContent=t.lumoraS;
+  el('rmDay').textContent=t.day;el('rmMonth').textContent=t.month;el('copyBtn').textContent=t.copy;
+  el('note').placeholder=t.notePh;
+}
+function render(){
+  const t=L();
+  el('visits').innerHTML=t.visits.map((v,i)=>`<div class="chip big${selVisit===i?' sel':''}" onclick="pickVisit(${i})">${v}</div>`).join('');
+  el('custs').innerHTML=t.custs.map((c,i)=>`<div class="chip${selCust===i?' sel':''}" onclick="pickCust(${i})">${c}</div>`).join('');
+  el('prods').innerHTML=t.prods.map((p,i)=>`<div class="chip${selProd===i?' sel':''}" onclick="pickProd(${i})">${p}</div>`).join('');
+  el('srcs').innerHTML=t.srcs.map((s,i)=>`<div class="chip gold${selSrc===i?' sel':''}" onclick="pickSrc(${i})">${s}</div>`).join('');
+  el('lumoraTog').className='lumora'+(isLumora?' on':'');
+  el('lumoraBox').textContent=isLumora?'✓':'';
+  renderPays();
+}
+function renderPays(){
+  const t=L();
+  el('payLines').innerHTML=payLines.map((p,i)=>`<div class="payline">
+    <select onchange="setPayWay(${i},this.value)">${t.ways.map((w,j)=>`<option value="${j}"${p.way==j?' selected':''}>${w}</option>`).join('')}</select>
+    <input type="number" inputmode="decimal" placeholder="RM" value="${p.amt}" oninput="setPayAmt(${i},this.value)">
+    ${payLines.length>1?`<button class="x" onclick="rmPayLine(${i})">×</button>`:''}
+  </div>`).join('');
+}
+function pickVisit(i){selVisit=(selVisit===i)?null:i;updateFields();render();chk()}
+function pickCust(i){selCust=(selCust===i)?null:i;render();chk()}
+function pickProd(i){selProd=(selProd===i)?null:i;
+  const showLum=(L().prods[i]==="Single Vision");
+  el('lumoraWrap').className=showLum?'':'hide';
+  if(!showLum)isLumora=false;
+  render();chk()}
+function pickSrc(i){selSrc=(selSrc===i)?null:i;render();chk()}
+function toggleLumora(){isLumora=!isLumora;render()}
+function setPayWay(i,v){payLines[i].way=parseInt(v)}
+function setPayAmt(i,v){payLines[i].amt=v;chk()}
+function addPayLine(){payLines.push({way:0,amt:''});renderPays()}
+function rmPayLine(i){payLines.splice(i,1);renderPays();chk()}
+
+function updateFields(){
+  const k=VISIT_KEYS[selVisit];
+  el('prodWrap').className=(k==='new')?'':'hide';
+  el('payWrap').className=(k==='new'||k==='taken')?'':'hide';
+}
+function chk(){
+  if(selVisit===null){el('saveBtn').disabled=true;return}
+  const k=VISIT_KEYS[selVisit];
+  let ok=selCust!==null;
+  if(k==='new'){
+    const sa=parseFloat(el('saleAmt').value)||0;
+    ok=ok&&selProd!==null&&selSrc!==null&&(L().prods[selProd]==="FOC 公益"||L().prods[selProd]==="FOC"||sa>0);
+  }
+  el('saveBtn').disabled=!ok;
+}
+el('saleAmt').addEventListener('input',chk);
+
+function nowTime(){return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+function toast(m){const t=el('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400)}
+
+function saveTxn(){
+  const k=VISIT_KEYS[selVisit];
+  const pays=payLines.map(p=>({way:p.way,amt:parseFloat(p.amt)||0})).filter(p=>p.amt>0);
+  const rec={
+    date:el('theDate').value,store:el('hStore').value,staff:el('staffName').value.trim(),
+    visit:k,cust:selCust,
+    prod:(k==='new')?selProd:null,src:(k==='new')?selSrc:null,lumora:isLumora,
+    sale:(k==='new')?(parseFloat(el('saleAmt').value)||0):0,
+    pays:pays,note:el('note').value.trim(),time:nowTime()
+  };
+  txns.unshift(rec);
+  pushToServer(rec);
+  selVisit=null;selCust=null;selProd=null;selSrc=null;isLumora=false;payLines=[{way:0,amt:''}];
+  el('saleAmt').value='';el('note').value='';
+  el('prodWrap').className='hide';el('payWrap').className='hide';el('lumoraWrap').className='hide';
+  render();chk();refresh();toast(L().saved);
+}
+function delTxn(i){txns.splice(i,1);refresh()}
+
+function tab(id,b){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.tabbar button').forEach(x=>x.classList.remove('on'));el(id).classList.add('on');b.classList.add('on')}
+function repMode(m,b){curRep=m;document.querySelectorAll('#report .seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');refresh()}
+function fmt(n){return 'RM '+n.toLocaleString('en-MY',{maximumFractionDigits:0})}
+
+function refresh(){
+  const t=L(),d=el('theDate').value;
+  const today=txns.filter(x=>x.date===d);
+  el('entryFoot').textContent=t.foot.replace('N',today.length);
+
+  // list
+  el('listbox').innerHTML=today.length?today.map((x,i)=>{
+    const tagcls={new:'new',taken:'taken',service:'svc',other:'other'}[x.visit];
+    const vname=t.visits[VISIT_KEYS.indexOf(x.visit)];
+    const cust=t.custs[x.cust];
+    let det=cust;
+    if(x.visit==='new'){det+=' · '+t.prods[x.prod]+(x.lumora?' · Lumora':'')+' · '+t.srcs[x.src]}
+    const paid=x.pays.reduce((s,p)=>s+p.amt,0);
+    const amt=x.visit==='new'?fmt(x.sale):(paid>0?fmt(paid):'—');
+    return `<div class="row"><div class="top"><span class="tag ${tagcls}">${vname}</span>
+      <span style="display:flex;align-items:center"><b class="amt2">${amt}</b><button class="del" onclick="delTxn(${i})">×</button></span></div>
+      <div class="det">${det} · ${x.time}</div>${x.note?`<div class="nt">${x.note}</div>`:''}</div>`;
+  }).join(''):`<div class="empty">${lang==='zh'?'今天还没有记录':'No entries today'}</div>`;
+
+  buildReport();
+}
+
+function buildReport(){
+  const t=L(),d=el('theDate').value;
+  const inScope=x=> curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7);
+  const scope=txns.filter(inScope);
+  const utdScope=txns.filter(x=>x.date<=d);
+
+  const saleToday=scope.reduce((s,x)=>s+x.sale,0);
+  const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
+  const utdSale=utdScope.reduce((s,x)=>s+x.sale,0);
+  const utdColl=utdScope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
+
+  const wayTot={};
+  scope.forEach(x=>x.pays.forEach(p=>{wayTot[p.way]=(wayTot[p.way]||0)+p.amt}));
+
+  const cust=scope.filter(x=>x.visit==='new'||x.visit==='taken').length;
+  const taken=scope.filter(x=>x.visit==='taken').length;
+  const svc=scope.filter(x=>x.visit==='service').length;
+  const other=scope.filter(x=>x.visit==='other').length;
+
+  const lumPcs=scope.filter(x=>x.lumora).length;
+  const lumAmt=scope.filter(x=>x.lumora).reduce((s,x)=>s+x.sale,0);
+
+  const dateLabel=new Date(d).toLocaleDateString('en-GB');
+  let h=`<div class="ttl">HALO OPTICAL · ${el('hStore').value}</div><div class="dt">${dateLabel}${curRep==='month'?(lang==='zh'?' · 本月累积':' · month to date'):''}</div>`;
+  h+=`<div class="rline hl"><span>${t.rSale}</span><b>${fmt(saleToday)}</b></div>`;
+  h+=`<div class="rline hl"><span>${t.rColl}</span><b>${fmt(collToday)}</b></div>`;
+  L().ways.forEach((w,j)=>{ if(wayTot[j]) h+=`<div class="rline rsub"><span>${w}</span><span>${fmt(wayTot[j])}</span></div>`; });
+  h+=`<div class="rline" style="margin-top:8px"><span>${t.rUtdS}</span><b>${fmt(utdSale)}</b></div>`;
+  h+=`<div class="rline"><span>${t.rUtdC}</span><b>${fmt(utdColl)}</b></div>`;
+
+  h+=`<div class="rsec">${t.rCust}: ${cust}　|　${t.rTaken}: ${taken}　|　${t.rSvc}: ${svc}　|　${t.rOther}: ${other}</div>`;
+
+  if(lumPcs){
+    h+=`<div class="lumora-stat"><div class="t">${curRep==='day'?t.lumoraDay:t.lumoraMonth}</div><div class="v">${lumPcs} ${t.pcs} · ${fmt(lumAmt)}</div></div>`;
+  }
+
+  const newTxns=scope.filter(x=>x.visit==='new');
+  const prodAgg={},prodAmt={};
+  newTxns.forEach(x=>{prodAgg[x.prod]=(prodAgg[x.prod]||0)+1;prodAmt[x.prod]=(prodAmt[x.prod]||0)+x.sale});
+  const prodKeys=Object.keys(prodAgg).map(Number).sort((a,b)=>prodAgg[b]-prodAgg[a]);
+  if(prodKeys.length){
+    h+=`<div class="rsec">${t.byProd}</div>`;
+    prodKeys.forEach(k=>{ h+=`<div class="rline"><span>${t.prods[k]}</span><span><b>${prodAgg[k]} ${t.pcs}</b> · ${fmt(prodAmt[k])}</span></div>`; });
+    h+=`<div class="rline" style="border-top:1px solid var(--line);margin-top:4px;font-weight:700"><span>${t.total}</span><span>${newTxns.length} ${t.pcs} · ${fmt(saleToday)}</span></div>`;
+  }
+  const srcAgg={};
+  newTxns.forEach(x=>{srcAgg[x.src]=(srcAgg[x.src]||0)+1});
+  const srcKeys=Object.keys(srcAgg).map(Number).sort((a,b)=>srcAgg[b]-srcAgg[a]);
+  if(srcKeys.length){
+    h+=`<div class="rsec">${t.bySrc}</div>`;
+    srcKeys.forEach(k=>{ h+=`<div class="rline"><span>${t.srcs[k]}</span><b>${srcAgg[k]} ${t.pcs}</b></div>`; });
+  }
+
+  const noted=scope.filter(x=>x.note);
+  if(noted.length){
+    h+=`<div class="rsec">${t.rNotes}</div><ul class="clist">`;
+    noted.forEach(x=>{
+      const vname=t.visits[VISIT_KEYS.indexOf(x.visit)];
+      h+=`<li><b>${vname}</b>${x.visit==='new'?' · '+t.prods[x.prod]:''} — ${x.note}</li>`;
+    });
+    h+=`</ul>`;
+  }
+  el('repBox').innerHTML=h;
+}
+
+function copyReport(){
+  const t=L(),d=el('theDate').value;
+  const inScope=x=> curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7);
+  const scope=txns.filter(inScope);
+  const utdScope=txns.filter(x=>x.date<=d);
+  const saleToday=scope.reduce((s,x)=>s+x.sale,0);
+  const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
+  const utdSale=utdScope.reduce((s,x)=>s+x.sale,0);
+  const utdColl=utdScope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
+  const wayTot={};scope.forEach(x=>x.pays.forEach(p=>{wayTot[p.way]=(wayTot[p.way]||0)+p.amt}));
+  const cust=scope.filter(x=>x.visit==='new'||x.visit==='taken').length;
+  const taken=scope.filter(x=>x.visit==='taken').length;
+  const svc=scope.filter(x=>x.visit==='service').length;
+  const lumPcs=scope.filter(x=>x.lumora).length;
+  const lumAmt=scope.filter(x=>x.lumora).reduce((s,x)=>s+x.sale,0);
+  const f=n=>'RM'+n.toLocaleString('en-MY',{maximumFractionDigits:0});
+  let lines=[`*HALO OPTICAL ${el('hStore').value}*`,new Date(d).toLocaleDateString('en-GB')];
+  lines.push(`Sale today : ${f(saleToday)}`);
+  lines.push(`Collection today : ${f(collToday)}`);
+  L().ways.forEach((w,j)=>lines.push(`${w} : ${f(wayTot[j]||0)}`));
+  lines.push(`UTD Sale : *${f(utdSale)}*`);
+  lines.push(`UTD collection : *${f(utdColl)}*`);
+  lines.push(`*CUSTOMER* ${cust}`);
+  lines.push(`*TAKEN* ${taken}　*SERVICE* ${svc}`);
+  if(lumPcs)lines.push(`Lumora : ${lumPcs}pcs · ${f(lumAmt)}`);
+  const newTxns=scope.filter(x=>x.visit==='new');
+  const prodAgg={},prodAmt={};
+  newTxns.forEach(x=>{prodAgg[x.prod]=(prodAgg[x.prod]||0)+1;prodAmt[x.prod]=(prodAmt[x.prod]||0)+x.sale});
+  const prodKeys=Object.keys(prodAgg).map(Number).sort((a,b)=>prodAgg[b]-prodAgg[a]);
+  if(prodKeys.length){
+    lines.push(`*${L().byProd}*`);
+    prodKeys.forEach(k=>lines.push(`${L().prods[k]} : ${prodAgg[k]}pcs · ${f(prodAmt[k])}`));
+  }
+  const srcAgg={};
+  newTxns.forEach(x=>{srcAgg[x.src]=(srcAgg[x.src]||0)+1});
+  const srcKeys=Object.keys(srcAgg).map(Number).sort((a,b)=>srcAgg[b]-srcAgg[a]);
+  if(srcKeys.length){
+    lines.push(`*${L().bySrc}*`);
+    srcKeys.forEach(k=>lines.push(`${L().srcs[k]} : ${srcAgg[k]}pcs`));
+  }
+  const noted=scope.filter(x=>x.note);
+  noted.forEach(x=>lines.push(`- ${x.note}`));
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>toast(L().copied)).catch(()=>toast(L().copied));
+}
+
+let syncQueue=[];
+function setDot(color,title){const d=el('syncDot');if(d){d.style.color=color;d.title=title}}
+function pushToServer(rec){
+  if(!SCRIPT_URL){setDot('#9DB4D4','本机暂存(未连 Sheets)');return}
+  const payload={
+    date:rec.date,store:rec.store,staff:rec.staff,visit:rec.visit,
+    cust:rec.cust===0?'new':(rec.cust===1?'regular':''),
+    prod:rec.prod!==null?L().prods[rec.prod]:'',
+    lumora:rec.lumora,src:rec.src!==null?L().srcs[rec.src]:'',
+    sale:rec.sale,
+    payDetail:rec.pays.map(p=>L().ways[p.way]+' '+p.amt).join(' | '),
+    payTotal:rec.pays.reduce((s,p)=>s+p.amt,0),
+    note:rec.note
+  };
+  syncQueue.push(payload);
+  flushQueue();
+}
+function flushQueue(){
+  if(!SCRIPT_URL||!syncQueue.length)return;
+  setDot('#EF9F27','同步中…');
+  const batch=syncQueue.slice();
+  fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(batch.length>1?{batch:true,records:batch}:batch[0])})
+    .then(r=>r.json()).then(res=>{
+      if(res.status==='ok'){syncQueue=syncQueue.slice(batch.length);setDot('#1D9E75','已同步 ✓');}
+      else{setDot('#D85A30','同步失败,稍后重试');}
+    }).catch(()=>{setDot('#D85A30','离线,稍后自动重试');});
+}
+setInterval(flushQueue,15000);
+
+function initStores(){
+  el('hStore').innerHTML=STORES.map(s=>`<option value="${s}">${s}</option>`).join('');
+}
+
+initStores();applyLang();render();chk();refresh();
+if(!SCRIPT_URL)setDot('#9DB4D4','本机暂存(未连 Sheets)');
+</script>
+</body>
+</html>

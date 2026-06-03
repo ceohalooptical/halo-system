@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halo 老板总览</title>
+<style>
+  :root{
+    --navy:#0B2447; --navy2:#0F2E5A; --gold:#D4A24C; --cream:#F5F1E8;
+    --ink:#1F2937; --line:#E3DECF; --muted:#8A8678; --ok:#1D9E75; --red:#D85A30; --blue:#185FA5;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    background:var(--cream);color:var(--ink);line-height:1.5;padding-bottom:50px}
+  .wrap{max-width:1100px;margin:0 auto}
+  header{background:var(--navy);padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  header .brand{color:var(--gold);font-size:17px;font-weight:700;letter-spacing:.5px}
+  header .ctrl{display:flex;gap:8px;align-items:center}
+  header select,header input{background:var(--navy2);border:1px solid #2A4570;color:#fff;
+    border-radius:8px;padding:7px 11px;font-size:13px;font-family:inherit}
+  header .lang{background:var(--navy2);border:1px solid #2A4570;color:#fff;border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+  .body{padding:20px 24px}
+  .seg{display:inline-flex;gap:6px;margin-bottom:18px;background:#fff;padding:5px;border-radius:10px;border:1px solid var(--line)}
+  .seg button{border:none;background:none;border-radius:7px;padding:8px 20px;font-size:14px;cursor:pointer;font-family:inherit;color:var(--muted)}
+  .seg button.on{background:var(--navy);color:#fff;font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .kpi .cap{font-size:13px;color:var(--muted)}
+  .kpi .big{font-size:30px;font-weight:700;color:var(--navy);margin-top:4px}
+  .kpi .big.blue{color:var(--blue)}.kpi .big.gold{color:var(--gold)}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .cols{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+  .card h3{font-size:15px;color:var(--navy);margin-bottom:14px;font-weight:600}
+  .store{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .store:last-child{border:none}
+  .store .rank{width:24px;height:24px;border-radius:50%;background:var(--cream);color:var(--muted);
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .store .rank.top{background:var(--gold);color:var(--navy)}
+  .store .nm{flex:1;font-size:14px;font-weight:500}
+  .store .bar{flex:2;height:8px;background:var(--cream);border-radius:4px;overflow:hidden}
+  .store .bar i{display:block;height:100%;background:var(--navy);border-radius:4px}
+  .store .val{width:90px;text-align:right;font-size:13px;font-weight:600}
+  .store .cnt{width:50px;text-align:right;font-size:12px;color:var(--muted)}
+  .brk{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .brk:last-child{border:none}.brk b{font-weight:600}
+  .prog{height:6px;background:var(--cream);border-radius:3px;margin-top:4px;overflow:hidden}
+  .prog i{display:block;height:100%;border-radius:3px}
+  .prog.g i{background:var(--gold)}.prog.b i{background:var(--blue)}.prog.n i{background:var(--navy)}
+  .lumora-box{background:#FBF6EC;border:1px solid var(--gold);border-radius:12px;padding:16px 20px}
+  .lumora-box .cap{font-size:13px;color:#854F0B;font-weight:600}
+  .lumora-box .big{font-size:26px;font-weight:700;color:var(--navy);margin-top:4px}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .banner{background:#FBF6EC;border:1px solid var(--gold);color:#854F0B;border-radius:10px;
+    padding:10px 14px;font-size:13px;margin-bottom:16px}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><a href="index.html" style="color:#9DB4D4;text-decoration:none;margin-right:8px">‹ 首页</a><span id="hTitle">HALO · 老板总览</span></div>
+    <div class="ctrl">
+      <input type="month" id="theMonth">
+      <button class="lang" id="langBtn" onclick="toggleLang()">EN</button>
+    </div>
+  </header>
+  <div class="body">
+    <div class="banner" id="demoBanner">演示模式:正在显示样本数据。填入 Apps Script 网址后,这里会自动换成你九店的真实数据。</div>
+    <div class="seg">
+      <button class="on" id="sgDay" onclick="setScope('day',this)">今日</button>
+      <button id="sgMonth" onclick="setScope('month',this)">本月</button>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="cols">
+      <div>
+        <div class="card">
+          <h3 id="ttlStores">各店业绩排行</h3>
+          <div id="storeList"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card lumora-box" style="margin-bottom:18px">
+          <div class="cap" id="ttlLumora">Lumora 镜片(高毛利主力)</div>
+          <div class="big" id="lumoraVal">—</div>
+          <div class="note" id="lumoraNote"></div>
+        </div>
+        <div class="card">
+          <h3 id="ttlProd">产品类别</h3>
+          <div id="prodBrk"></div>
+        </div>
+        <div class="card">
+          <h3 id="ttlSrc">客人来源</h3>
+          <div id="srcBrk"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== 老板总览读数据:用 Google Sheet 发布的 CSV 网址 ====== */
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
+/* ============================================================ */
+
+const TX={
+  zh:{title:"HALO · 老板总览",day:"今日",month:"本月",stores:"各店业绩排行",
+    lumora:"Lumora 镜片(高毛利主力)",prod:"产品类别",src:"客人来源",
+    kSale:"销售额",kColl:"收款额",kCust:"客户数",kPcs:"成交副数",
+    pcs:"副",demo:"演示模式:正在显示样本数据。填入 Apps Script 网址后,这里会自动换成你九店的真实数据。",
+    lumoraNote:"占总成交 P%"},
+  en:{title:"HALO · Owner Dashboard",day:"Today",month:"Month",stores:"Store ranking",
+    lumora:"Lumora lens (high-margin)",prod:"Product mix",src:"Source mix",
+    kSale:"Sales",kColl:"Collection",kCust:"Customers",kPcs:"Units sold",
+    pcs:"pcs",demo:"Demo mode: showing sample data. Once you paste the Apps Script URL, this switches to your live 9-store data.",
+    lumoraNote:"P% of all units"}
+};
+let lang='zh',scope='day',allRows=[];
+const el=id=>document.getElementById(id);
+const L=()=>TX[lang];
+const STORES=["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+const PRODS=["Single Vision","Multifocal","隐形眼镜","儿童控度","太阳镜","纯配框","纯配片","FOC 公益","其他"];
+const SRCS=["线上","Google","Walk in","老客/转介","活动券"];
+
+function todayStr(){const d=new Date();return d.toISOString().slice(0,10)}
+function monthStr(){return new Date().toISOString().slice(0,7)}
+el('theMonth').value=monthStr();
+
+function toggleLang(){lang=lang==='zh'?'en':'zh';el('langBtn').textContent=lang==='zh'?'EN':'中';applyLang();render()}
+function applyLang(){const t=L();el('hTitle').textContent=t.title;el('sgDay').textContent=t.day;el('sgMonth').textContent=t.month;
+  el('ttlStores').textContent=t.stores;el('ttlLumora').textContent=t.lumora;el('ttlProd').textContent=t.prod;el('ttlSrc').textContent=t.src;
+  el('demoBanner').textContent=t.demo;}
+function setScope(s,b){scope=s;document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render()}
+function fmt(n){return 'RM '+Math.round(n).toLocaleString('en-MY')}
+
+function genDemo(){
+  const rows=[];const mon=monthStr();
+  const strength={"Iconic Point":160,"Kulim":120,"Kulai":110,"Bukit Minyak":95,"Machang Bubok":80,"Juru One City":78,"Kepong":50,"Icon City":45,"Melaka":20};
+  const today=todayStr();
+  STORES.forEach(s=>{
+    const n=Math.round(strength[s]/4);
+    for(let i=0;i<n;i++){
+      const day=(i%26)+1;
+      const date=mon+'-'+String(day).padStart(2,'0');
+      const r=Math.random();
+      let visit='new';if(r>0.82)visit='taken';else if(r>0.74)visit='service';else if(r>0.70)visit='other';
+      const prodI=Math.random()<0.62?0:(Math.random()<0.4?1:Math.floor(Math.random()*9));
+      const srcI=Math.floor(Math.random()*5);
+      const sale=visit==='new'?(prodI===0?[450,500,560,600][Math.floor(Math.random()*4)]:[300,520,680,349][Math.floor(Math.random()*4)]):0;
+      const isToday=(i%26===0);
+      rows.push({'日期':isToday?today:date,'分店':s,'来意':visit,'客户身份':'',
+        '产品类别':visit==='new'?PRODS[prodI]:'','Lumora':(prodI===0&&Math.random()<0.7)?'是':'',
+        '来源':visit==='new'?SRCS[srcI]:'','销售额':sale,'收款合计':visit==='new'||visit==='taken'?sale||[300,500][Math.floor(Math.random()*2)]:0});
+    }
+  });
+  return rows;
+}
+
+function load(){
+  if(!CSV_URL){allRows=genDemo();el('demoBanner').style.display='';render();return}
+  el('demoBanner').style.display='none';
+  fetch(CSV_URL+'&t='+Date.now())
+    .then(r=>r.text())
+    .then(txt=>{ allRows=parseCSV(txt); render(); })
+    .catch(()=>{ allRows=genDemo(); el('demoBanner').style.display=''; render(); });
+}
+function parseCSV(txt){
+  const lines=splitCSV(txt);
+  if(lines.length<2)return [];
+  const header=lines[0];
+  const idx={};
+  header.forEach((h,i)=>{idx[h.trim()]=i});
+  const out=[];
+  for(let i=1;i<lines.length;i++){
+    const c=lines[i];
+    if(!c.length||c.every(x=>x==='')) continue;
+    const g=name=> (idx[name]!==undefined? (c[idx[name]]||'') : '');
+    out.push({
+      '日期':String(g('日期')).slice(0,10),
+      '分店':g('分店'),
+      '来意':g('来意'),
+      '产品类别':g('产品类别'),
+      'Lumora':g('Lumora'),
+      '来源':g('来源'),
+      '销售额':Number(g('销售额'))||0,
+      '收款合计':Number(g('收款合计'))||0
+    });
+  }
+  return out;
+}
+function splitCSV(txt){
+  const rows=[];let row=[];let cur='';let q=false;
+  for(let i=0;i<txt.length;i++){
+    const ch=txt[i];
+    if(q){
+      if(ch==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=ch;
+    }else{
+      if(ch==='"')q=true;
+      else if(ch===',') {row.push(cur);cur='';}
+      else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}
+      else if(ch==='\r'){}
+      else cur+=ch;
+    }
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+
+function inScope(r){const m=el('theMonth').value;
+  if(scope==='month')return String(r['日期']).slice(0,7)===m;
+  return String(r['日期'])===todayStr();}
+
+function render(){
+  const t=L();
+  const rows=allRows.filter(inScope);
+  const sale=rows.reduce((s,r)=>s+(r['销售额']||0),0);
+  const coll=rows.reduce((s,r)=>s+(r['收款合计']||0),0);
+  const cust=rows.filter(r=>r['来意']==='new'||r['来意']==='taken').length;
+  const pcs=rows.filter(r=>r['来意']==='new').length;
+
+  el('kpis').innerHTML=`
+    <div class="kpi"><div class="cap">${t.kSale}</div><div class="big">${fmt(sale)}</div></div>
+    <div class="kpi"><div class="cap">${t.kColl}</div><div class="big blue">${fmt(coll)}</div></div>
+    <div class="kpi"><div class="cap">${t.kCust}</div><div class="big">${cust}</div></div>
+    <div class="kpi"><div class="cap">${t.kPcs}</div><div class="big">${pcs} ${t.pcs}</div></div>`;
+
+  // store ranking by sales
+  const byStore={};STORES.forEach(s=>byStore[s]={sale:0,cnt:0});
+  rows.forEach(r=>{if(byStore[r['分店']]){byStore[r['分店']].sale+=r['销售额']||0;if(r['来意']==='new')byStore[r['分店']].cnt++}});
+  const ranked=STORES.map(s=>({s,...byStore[s]})).sort((a,b)=>b.sale-a.sale);
+  const maxS=Math.max(...ranked.map(x=>x.sale),1);
+  el('storeList').innerHTML=ranked.map((x,i)=>`<div class="store">
+    <div class="rank${i===0?' top':''}">${i+1}</div>
+    <div class="nm">${x.s}</div>
+    <div class="bar"><i style="width:${x.sale/maxS*100}%"></i></div>
+    <div class="val">${fmt(x.sale)}</div>
+    <div class="cnt">${x.cnt} ${t.pcs}</div></div>`).join('');
+
+  // lumora
+  const lumPcs=rows.filter(r=>r['Lumora']==='是').length;
+  const lumAmt=rows.filter(r=>r['Lumora']==='是').reduce((s,r)=>s+(r['销售额']||0),0);
+  const pct=pcs?Math.round(lumPcs/pcs*100):0;
+  el('lumoraVal').textContent=`${lumPcs} ${t.pcs} · ${fmt(lumAmt)}`;
+  el('lumoraNote').textContent=t.lumoraNote.replace('P',pct);
+
+  // product breakdown
+  brk('prodBrk',PRODS,rows.filter(r=>r['来意']==='new'),'产品类别','g');
+  brk('srcBrk',SRCS,rows.filter(r=>r['来意']==='new'),'来源','b');
+}
+function brk(box,keys,data,field,cls){
+  const agg={};let max=0;
+  data.forEach(r=>{if(r[field]){agg[r[field]]=(agg[r[field]]||0)+1}});
+  keys.forEach(k=>{if(agg[k]>max)max=agg[k]});
+  const ks=Object.keys(agg).sort((a,b)=>agg[b]-agg[a]);
+  el(box).innerHTML=ks.length?ks.map(k=>`<div class="brk"><span>${k}</span><b>${agg[k]} ${L().pcs}</b></div><div class="prog ${cls}"><i style="width:${max?agg[k]/max*100:0}%"></i></div>`).join(''):'<div class="brk" style="color:var(--muted)">—</div>';
+}
+
+el('theMonth').addEventListener('change',load);
+applyLang();load();
+</script>
+</body>
+</html>
