@@ -103,10 +103,8 @@
 </div>
 
 <script>
-/* ====== 老板总览读数据:用 Google Sheet 实时导出 CSV(几乎即时) ====== */
-const SHEET_ID = "1xhe2cYBD5CYuOijUzsViY4cs1uWWsY9ohQbgvBbvtBI";
-const SHEET_GID = "1113972371";
-const CSV_URL = "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/export?format=csv&gid="+SHEET_GID;
+/* ====== 老板总览读数据:公开 CSV(实时,配合强制不缓存) ====== */
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
 /* ============================================================ */
 
 const TX={
