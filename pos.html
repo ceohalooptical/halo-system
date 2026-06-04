@@ -340,9 +340,10 @@ function refresh(){
 
 function buildReport(){
   const t=L(),d=el('theDate').value;
-  const inScope=x=> curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7);
+  const st=el('hStore').value;
+  const inScope=x=> x.store===st && (curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7));
   const scope=txns.filter(inScope);
-  const utdScope=txns.filter(x=>x.date<=d);
+  const utdScope=txns.filter(x=>x.store===st && x.date<=d);
 
   const saleToday=scope.reduce((s,x)=>s+x.sale,0);
   const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
@@ -405,9 +406,10 @@ function buildReport(){
 
 function copyReport(){
   const t=L(),d=el('theDate').value;
-  const inScope=x=> curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7);
+  const st=el('hStore').value;
+  const inScope=x=> x.store===st && (curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7));
   const scope=txns.filter(inScope);
-  const utdScope=txns.filter(x=>x.date<=d);
+  const utdScope=txns.filter(x=>x.store===st && x.date<=d);
   const saleToday=scope.reduce((s,x)=>s+x.sale,0);
   const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
   const utdSale=utdScope.reduce((s,x)=>s+x.sale,0);
