@@ -105,12 +105,12 @@
 <div class="wrap">
   <header>
     <div class="htop">
-      <div class="brand"><a href="index.html" style="color:#9DB4D4;text-decoration:none;margin-right:8px">‹ 首页</a>HALO · <select id="hStore" onchange="refresh()" style="background:var(--navy2);border:1px solid #2A4570;color:var(--gold);border-radius:6px;padding:3px 6px;font-size:13px;font-weight:600;font-family:inherit"></select></div>
+      <div class="brand"><a href="index.html" style="color:#9DB4D4;text-decoration:none;margin-right:8px">‹ 首页</a>HALO · <select id="hStore" onchange="refresh();loadServer()" style="background:var(--navy2);border:1px solid #2A4570;color:var(--gold);border-radius:6px;padding:3px 6px;font-size:13px;font-weight:600;font-family:inherit"></select></div>
       <button class="lang" onclick="toggleLang()" id="langBtn">EN</button>
     </div>
     <div class="daterow">
       <label id="lblDate">日期</label>
-      <input type="date" id="theDate" onchange="refresh()">
+      <input type="date" id="theDate" onchange="refresh();loadServer()">
       <input id="staffName" placeholder="店员名" value="Ah Hui" style="background:var(--navy2);border:1px solid #2A4570;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px;font-family:inherit;margin-left:auto;width:90px">
       <span id="syncDot" style="font-size:11px;color:#9DB4D4" title="同步状态">●</span>
     </div>
@@ -179,6 +179,11 @@
 /* ====== 配置区:把你部署 Apps Script 拿到的网址填进这里 ====== */
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyce2NI8OYz8xdcS0AifHKzRKz13phJrj_rLiq0lIe9vO38FJZtyQmx42GiR_vzPJFG/exec";  /* 例: "https://script.google.com/macros/s/AKfy.../exec" 留空则只在本机暂存 */
 const STORES = ["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+/* 读回数据用:Google Sheet 实时接口(让今日清单刷新不丢、手机电脑同步) */
+const SHEET_ID = "1xhe2cYBD5CYuOijUzsViY4cs1uWWsY9ohQbgvBbvtBI";
+const SHEET_GID = "1113972371";
+const GVIZ_URL = "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?gid="+SHEET_GID+"&tqx=out:csv";
+const PUB_CSV  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
 /* ============================================================ */
 
 const T={
@@ -297,6 +302,7 @@ function saveTxn(){
   const k=VISIT_KEYS[selVisit];
   const pays=payLines.map(p=>({way:p.way,amt:parseFloat(p.amt)||0})).filter(p=>p.amt>0);
   const rec={
+    _local:true,
     date:el('theDate').value,store:el('hStore').value,staff:el('staffName').value.trim(),
     visit:k,cust:selCust,
     prod:(k==='new')?selProd:null,src:(k==='new')?selSrc:null,lumora:isLumora,
@@ -310,30 +316,99 @@ function saveTxn(){
   el('prodWrap').className='hide';el('payWrap').className='hide';el('lumoraWrap').className='hide';
   render();chk();refresh();toast(L().saved);
 }
-function delTxn(i){txns.splice(i,1);refresh()}
+function delTxn(i){ if(txns[i]&&txns[i]._local){txns.splice(i,1);refresh()} }
+
+/* ===== 从 Google Sheet 读回数据,让清单刷新不丢、手机电脑同步 ===== */
+let serverTxns=[];
+function loadServer(){
+  fetchCsv(GVIZ_URL)
+    .then(txt=>{ if(!okCsv(txt))throw 0; serverTxns=parseServer(txt); refresh(); })
+    .catch(()=>{
+      fetchCsv(PUB_CSV)
+        .then(txt=>{ if(!okCsv(txt))throw 0; serverTxns=parseServer(txt); refresh(); })
+        .catch(()=>{ /* 读不到就只显示本机刚录的 */ });
+    });
+}
+function fetchCsv(url){
+  return fetch(url+(url.indexOf('?')>-1?'&':'?')+'_='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw 0;return r.text()});
+}
+function okCsv(t){return t&&t.indexOf('分店')>-1&&t.split('\n').length>1}
+function splitCSV(txt){
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<txt.length;i++){const ch=txt[i];
+    if(q){ if(ch==='"'){ if(txt[i+1]==='"'){cur+='"';i++} else q=false } else cur+=ch }
+    else{ if(ch==='"')q=true; else if(ch===','){row.push(cur);cur=''} else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur=''} else if(ch==='\r'){} else cur+=ch }
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row)}
+  return rows;
+}
+function parseServer(txt){
+  const z=T.zh;
+  const lines=splitCSV(txt); if(lines.length<2)return [];
+  const H={}; lines[0].forEach((h,i)=>H[h.trim()]=i);
+  const g=(c,name)=> (H[name]!==undefined?(c[H[name]]||''):'');
+  const out=[];
+  for(let i=1;i<lines.length;i++){
+    const c=lines[i]; if(!c.length||c.every(x=>x==='='))continue;
+    const date=String(g(c,'日期')).slice(0,10); if(!date)continue;
+    const visit=g(c,'来意')||'new';
+    const prodName=g(c,'产品类别');
+    const srcName=g(c,'来源');
+    const custName=g(c,'客户身份');
+    // 收款明细 -> pays 数组(尽量还原)
+    const payStr=g(c,'收款明细'); const pays=[];
+    if(payStr){ payStr.split('|').forEach(seg=>{ seg=seg.trim(); if(!seg)return;
+      let wi=z.ways.findIndex(w=>seg.indexOf(w)===0); if(wi<0)wi=0;
+      const amt=parseFloat((seg.match(/[\d.]+/g)||[]).pop())||0; if(amt>0)pays.push({way:wi,amt:amt}); }); }
+    const total=Number(g(c,'收款合计'))||0;
+    if(!pays.length && total>0)pays.push({way:0,amt:total});
+    out.push({
+      _local:false, date:date, store:g(c,'分店'), staff:g(c,'店员'),
+      visit:visit, cust:custName==='regular'?1:0,
+      prod: prodName? Math.max(0,z.prods.indexOf(prodName)) : null,
+      src: srcName? Math.max(0,z.srcs.indexOf(srcName)) : null,
+      lumora: g(c,'Lumora')==='是',
+      sale: Number(g(c,'销售额'))||0,
+      pays: pays, note: g(c,'备注'),
+      time: String(g(c,'记录时间戳')).slice(11,16)||''
+    });
+  }
+  return out;
+}
+/* 合并:本机刚录的 + 服务器读回的,去重(同店同店员同额同收款同备注) */
+function mergedTxns(){
+  const sig=x=>x.date+'|'+x.store+'|'+x.staff+'|'+x.sale+'|'+x.pays.reduce((s,p)=>s+p.amt,0)+'|'+x.note;
+  const seen={}, out=[];
+  txns.forEach(x=>{const s=sig(x);if(!seen[s]){seen[s]=1;out.push(x)}});      // 本机优先(可删)
+  serverTxns.forEach(x=>{const s=sig(x);if(!seen[s]){seen[s]=1;out.push(x)}}); // 服务器补充
+  return out;
+}
 
 function tab(id,b){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.tabbar button').forEach(x=>x.classList.remove('on'));el(id).classList.add('on');b.classList.add('on')}
 function repMode(m,b){curRep=m;document.querySelectorAll('#report .seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');refresh()}
 function fmt(n){return 'RM '+n.toLocaleString('en-MY',{maximumFractionDigits:0})}
 
 function refresh(){
-  const t=L(),d=el('theDate').value;
-  const today=txns.filter(x=>x.date===d);
+  const t=L(),d=el('theDate').value,st=el('hStore').value;
+  const all=mergedTxns();
+  const today=all.filter(x=>x.date===d && x.store===st);
   el('entryFoot').textContent=t.foot.replace('N',today.length);
 
   // list
-  el('listbox').innerHTML=today.length?today.map((x,i)=>{
+  el('listbox').innerHTML=today.length?today.map((x)=>{
+    const gi=txns.indexOf(x); // 只有本机记录能删
     const tagcls={new:'new',taken:'taken',service:'svc',other:'other'}[x.visit];
     const vname=t.visits[VISIT_KEYS.indexOf(x.visit)];
-    const cust=t.custs[x.cust];
+    const cust=t.custs[x.cust]||'';
     let det=cust;
-    if(x.visit==='new'){det+=' · '+t.prods[x.prod]+(x.lumora?' · Lumora':'')+' · '+t.srcs[x.src]}
+    if(x.visit==='new'){det+=' · '+(t.prods[x.prod]||'')+(x.lumora?' · Lumora':'')+' · '+(t.srcs[x.src]||'')}
     const paid=x.pays.reduce((s,p)=>s+p.amt,0);
     const amt=x.visit==='new'?fmt(x.sale):(paid>0?fmt(paid):'—');
+    const delBtn = x._local? `<button class="del" onclick="delTxn(${gi})">×</button>` : '';
     return `<div class="row"><div class="top"><span class="tag ${tagcls}">${vname}</span>
-      <span style="display:flex;align-items:center"><b class="amt2">${amt}</b><button class="del" onclick="delTxn(${i})">×</button></span></div>
-      <div class="det">${det} · ${x.time}</div>${x.note?`<div class="nt">${x.note}</div>`:''}</div>`;
-  }).join(''):`<div class="empty">${lang==='zh'?'今天还没有记录':'No entries today'}</div>`;
+      <span style="display:flex;align-items:center"><b class="amt2">${amt}</b>${delBtn}</span></div>
+      <div class="det">${det} · ${x.staff||''} · ${x.time}</div>${x.note?`<div class="nt">${x.note}</div>`:''}</div>`;
+  }).join(''):`<div class="empty">${lang==='zh'?'这天还没有记录':'No entries this day'}</div>`;
 
   buildReport();
 }
@@ -341,9 +416,10 @@ function refresh(){
 function buildReport(){
   const t=L(),d=el('theDate').value;
   const st=el('hStore').value;
+  const ALL=mergedTxns();
   const inScope=x=> x.store===st && (curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7));
-  const scope=txns.filter(inScope);
-  const utdScope=txns.filter(x=>x.store===st && x.date<=d);
+  const scope=ALL.filter(inScope);
+  const utdScope=ALL.filter(x=>x.store===st && x.date<=d);
 
   const saleToday=scope.reduce((s,x)=>s+x.sale,0);
   const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
@@ -407,9 +483,10 @@ function buildReport(){
 function copyReport(){
   const t=L(),d=el('theDate').value;
   const st=el('hStore').value;
+  const ALL=mergedTxns();
   const inScope=x=> x.store===st && (curRep==='day'? x.date===d : x.date.slice(0,7)===d.slice(0,7));
-  const scope=txns.filter(inScope);
-  const utdScope=txns.filter(x=>x.store===st && x.date<=d);
+  const scope=ALL.filter(inScope);
+  const utdScope=ALL.filter(x=>x.store===st && x.date<=d);
   const saleToday=scope.reduce((s,x)=>s+x.sale,0);
   const collToday=scope.reduce((s,x)=>s+x.pays.reduce((a,p)=>a+p.amt,0),0);
   const utdSale=utdScope.reduce((s,x)=>s+x.sale,0);
@@ -491,6 +568,8 @@ function initStores(){
 
 initStores();applyLang();render();chk();refresh();
 if(!SCRIPT_URL)setDot('#9DB4D4','本机暂存(未连 Sheets)');
+loadServer();                       // 打开就从 Sheet 读回当天数据
+setInterval(loadServer,20000);      // 每20秒自动拉一次,手机电脑保持同步
 </script>
 </body>
 </html>
