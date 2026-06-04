@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halo 考勤总表</title>
+<script src="auth.js?v=2"></script>
+<script>try{Auth.guard("boss")}catch(e){location.replace("login.html")}</script>
+<style>
+ :root{--navy:#0B2447;--navy2:#0F2E5A;--gold:#D4A24C;--cream:#F5F1E8;--ink:#1F2937;--line:#E3DECF;--muted:#8A8678;--ok:#1D9E75;--red:#D85A30;}
+ *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+ body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--cream);color:var(--ink);padding-bottom:80px}
+ header{background:var(--navy);padding:14px 18px;display:flex;align-items:center;gap:10px}
+ header a{color:#9DB4D4;text-decoration:none;font-size:13px}
+ header .ttl{color:var(--gold);font-size:17px;font-weight:700}
+ .bar{max-width:1200px;margin:0 auto;padding:14px 16px 6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+ .mnav{display:flex;align-items:center;gap:8px}
+ .mnav button{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 13px;font-size:16px;cursor:pointer}
+ .mlabel{font-size:16px;font-weight:700;color:var(--navy);min-width:90px;text-align:center}
+ .refresh{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+ .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap;margin-left:auto}
+ .legend span{display:inline-flex;align-items:center;gap:5px}
+ .dot{width:13px;height:13px;border-radius:3px;display:inline-block}
+ .alert{max-width:1200px;margin:0 auto 12px;padding:0 16px}
+ .alert .box{background:#FCE9E1;border:1px solid var(--red);border-radius:10px;padding:11px 14px;font-size:13px;color:#9A3412;line-height:1.7}
+ .alert .box b{color:var(--red)}
+ .wrap{max-width:1200px;margin:0 auto;padding:0 16px}
+ .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+ table{border-collapse:collapse;font-size:12px;white-space:nowrap}
+ th,td{border:1px solid #EDE8DA;text-align:center;height:30px;min-width:26px}
+ .namecol{position:sticky;left:0;background:#fff;z-index:5;text-align:left;padding:0 10px;min-width:130px;font-weight:600}
+ thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:6;font-weight:600}
+ thead th.nameh{left:0;z-index:8}
+ .wd{font-size:10px;color:#9DB4D4;font-weight:400}
+ .wknd{background:#F3EEDF}
+ .brow td{background:var(--navy2);color:var(--gold);text-align:left;padding:0 10px;font-weight:700;position:sticky;left:0}
+ .off{background:var(--red);color:#fff;font-weight:700}
+ .mc{background:#F2C94C;color:#5C4A00;font-weight:700}
+ .lv{background:#E8924A;color:#fff;font-weight:700}
+ .pend{outline:2px dashed #fff;outline-offset:-3px}
+ .sumcol{font-weight:700;background:#FAF7EF}
+ .pending{max-width:1200px;margin:18px auto 0;padding:0 16px}
+ .pending h3{font-size:15px;color:var(--navy);margin-bottom:8px}
+ .pcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px;font-size:13px}
+ .pcard .t{font-weight:700;color:var(--navy)}
+ .pcard .m{color:var(--muted);margin-top:3px;line-height:1.6}
+ .empty{color:var(--muted);font-size:13px;padding:6px 0}
+ .loading{text-align:center;color:var(--muted);padding:34px;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">‹ 首页</a>
+  <div class="ttl">考勤总表 · HQ</div>
+</header>
+
+<div class="bar">
+  <div class="mnav">
+    <button onclick="shiftMonth(-1)">‹</button>
+    <span class="mlabel" id="mlabel"></span>
+    <button onclick="shiftMonth(1)">›</button>
+  </div>
+  <button class="refresh" onclick="load()">🔄 刷新</button>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--red)"></i>休假</span>
+    <span><i class="dot" style="background:#F2C94C"></i>病假 MC</span>
+    <span><i class="dot" style="background:#E8924A"></i>其他请假</span>
+    <span><i class="dot" style="background:#fff;outline:2px dashed #999;outline-offset:-2px"></i>待审批</span>
+  </div>
+</div>
+
+<div class="alert" id="alert"></div>
+<div class="wrap"><div class="scroll" id="grid"><div class="loading">载入中…</div></div></div>
+<div class="pending" id="pending"></div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUd2USgw1asp4iBKKUS6sznT45r0RcHdwyfMk52zh5ss85r4ij-yqwJtBQi8-aYgfXkw/exec";
+const STORES = ["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+const FLOAT = "机动";
+const WD = ["日","一","二","三","四","五","六"];
+const $ = id=>document.getElementById(id);
+const pad = n=>String(n).padStart(2,"0");
+let ym = thisMonth();
+let roster = [], records = [];
+
+function thisMonth(){const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1);}
+function quotaN(idn){return idn==="新人"?4:6;}
+function shiftMonth(d){let a=ym.split("-").map(Number),y=a[0],m=a[1];m+=d;if(m<1){m=12;y--;}if(m>12){m=1;y++;}ym=y+"-"+pad(m);load();}
+
+function load(){
+  $("mlabel").textContent=ym;
+  $("grid").innerHTML='<div class="loading">载入中…</div>';
+  Promise.all([
+    fetch(SCRIPT_URL+"?roster=1&_="+Date.now()).then(r=>r.json()).catch(()=>({roster:[]})),
+    fetch(SCRIPT_URL+"?month="+ym+"&_="+Date.now()).then(r=>r.json()).catch(()=>({records:[]}))
+  ]).then(function(res){
+    roster=(res[0]&&res[0].roster)?res[0].roster:[];
+    records=(res[1]&&res[1].records)?res[1].records:[];
+    render();
+  }).catch(function(){ $("grid").innerHTML='<div class="loading">载入失败，点刷新再试。</div>'; });
+}
+
+// 把请假日期标签（可能是 "2026-06-03" 或 "2026-06-03 ~ 2026-06-05"）展开成单日
+function expandDates(label){
+  label=String(label||"").trim();
+  const parts=label.split("~").map(s=>s.trim().slice(0,10));
+  const s=parts[0]; let e=parts[1]||parts[0];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return [];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(e)) e=s;
+  const sa=s.split("-").map(Number), ea=e.split("-").map(Number);
+  let y=sa[0],m=sa[1],d=sa[2]; const ey=ea[0],em=ea[1],ed=ea[2];
+  const out=[]; let guard=0;
+  while(guard++<400){
+    out.push(y+"-"+pad(m)+"-"+pad(d));
+    if(y===ey&&m===em&&d===ed) break;
+    d++; const dim=new Date(y,m,0).getDate(); if(d>dim){d=1;m++;if(m>12){m=1;y++;}}
+    if(y>ey||(y===ey&&m>em)||(y===ey&&m===em&&d>ed)) break;
+  }
+  return out;
+}
+
+function buildOffMap(){
+  const map={};
+  function put(name,date,o){ if(!map[name])map[name]={}; if(!map[name][date])map[name][date]=o; }
+  records.forEach(function(r){
+    const nm=String(r.name).trim();
+    if(r.kind==="rest"){ put(nm, String(r.date).slice(0,10), {type:"rest"}); }
+    else if(r.kind==="leave"){
+      const isMC=/病假|medical|mc/i.test(r.leaveType||"");
+      const pending=String(r.status).indexOf("待")>=0;
+      expandDates(r.date).forEach(function(dd){ if(dd.slice(0,7)===ym) put(nm, dd, {type:isMC?"mc":"lv", pending:pending}); });
+    }
+  });
+  return map;
+}
+
+function render(){
+  const a=ym.split("-").map(Number), y=a[0], m=a[1];
+  const dim=new Date(y,m,0).getDate();
+  const offMap=buildOffMap();
+
+  const order=STORES.concat([FLOAT]);
+  const groups={}; order.forEach(function(s){groups[s]=[];});
+  const extra=[];
+  roster.forEach(function(p){ if(groups[p.store]) groups[p.store].push(p); else extra.push(p); });
+
+  let html='<table><thead><tr><th class="nameh namecol">员工 / 分行</th>';
+  for(let d=1;d<=dim;d++){
+    const wd=new Date(y,m-1,d).getDay();
+    const wk=(wd===0||wd===6)?" wknd":"";
+    html+='<th class="'+wk+'">'+d+'<br><span class="wd">'+WD[wd]+'</span></th>';
+  }
+  html+='<th>休</th></tr></thead><tbody>';
+
+  function rowFor(p){
+    const rests=[];
+    for(let d=1;d<=dim;d++){const ds=ym+"-"+pad(d);const o=offMap[p.name]&&offMap[p.name][ds];if(o&&o.type==="rest")rests.push(ds);}
+    const idx={}; rests.forEach(function(ds,i){idx[ds]=i+1;});
+    let row='<tr><td class="namecol">'+p.name+(p.identity==="新人"?'<span style="color:var(--muted);font-weight:400;font-size:11px"> · 新</span>':'')+'</td>';
+    let offCount=0;
+    for(let d=1;d<=dim;d++){
+      const ds=ym+"-"+pad(d);
+      const wd=new Date(y,m-1,d).getDay();const wk=(wd===0||wd===6)?" wknd":"";
+      const o=offMap[p.name]&&offMap[p.name][ds];
+      if(o){
+        if(o.type==="rest"){ row+='<td class="off">'+idx[ds]+'</td>'; offCount++; }
+        else if(o.type==="mc"){ row+='<td class="mc'+(o.pending?" pend":"")+'">MC</td>'; }
+        else { row+='<td class="lv'+(o.pending?" pend":"")+'">假</td>'; }
+      } else { row+='<td class="'+wk+'"></td>'; }
+    }
+    row+='<td class="sumcol">'+offCount+'/'+quotaN(p.identity)+'</td></tr>';
+    return row;
+  }
+
+  order.forEach(function(store){
+    const people=groups[store];
+    const isStore=STORES.indexOf(store)>=0;
+    let label=store;
+    if(isStore && people.length===0) label=store+'（暂停 / 无人）';
+    html+='<tr class="brow"><td colspan="'+(dim+2)+'">'+label+'</td></tr>';
+    people.forEach(function(p){html+=rowFor(p);});
+  });
+  if(extra.length){ html+='<tr class="brow"><td colspan="'+(dim+2)+'">其他</td></tr>'; extra.forEach(function(p){html+=rowFor(p);}); }
+  html+='</tbody></table>';
+  $("grid").innerHTML=html;
+
+  renderAlert(offMap,y,m,dim,groups);
+  renderPending();
+}
+
+function renderAlert(offMap,y,m,dim,groups){
+  const byStore={};
+  STORES.forEach(function(store){
+    const people=groups[store]||[];
+    if(people.length===0) return;
+    for(let d=1;d<=dim;d++){
+      const ds=ym+"-"+pad(d);
+      const offN=people.filter(function(p){return offMap[p.name]&&offMap[p.name][ds];}).length;
+      if(offN===people.length){ (byStore[store]=byStore[store]||[]).push(d); }
+    }
+  });
+  const keys=Object.keys(byStore);
+  if(!keys.length){ $("alert").innerHTML=""; return; }
+  let txt='⚠️ <b>当月有分店整天没人上班（全部休 / 请假），需要调机动人手：</b><br>';
+  keys.forEach(function(s){ txt+='· '+s+'：'+byStore[s].map(function(d){return d+'号';}).join('、')+'<br>'; });
+  $("alert").innerHTML='<div class="box">'+txt+'</div>';
+}
+
+function renderPending(){
+  const pend=records.filter(function(r){return r.kind==="leave"&&String(r.status).indexOf("待")>=0;});
+  let html='<h3>待审批的请假（'+pend.length+'）</h3>';
+  if(!pend.length){ html+='<div class="empty">目前没有待审批的请假。</div>'; }
+  else { pend.forEach(function(r){ html+='<div class="pcard"><div class="t">'+r.name+'（'+r.store+'）· '+r.leaveType+'</div><div class="m">日期：'+r.date+(r.reason?'　原因：'+r.reason:'')+'　|　状态：'+r.status+'</div></div>'; }); }
+  $("pending").innerHTML=html;
+}
+
+load();
+</script>
+<script>try{Auth.decorate()}catch(e){}</script>
+</body>
+</html>

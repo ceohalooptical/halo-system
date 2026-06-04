@@ -23,10 +23,8 @@
     border-radius:10px;outline:none;font-family:inherit;background:#fff;color:var(--ink)}
   input:focus,select:focus,textarea:focus{border-color:var(--gold)}
   .row2{display:flex;gap:10px}.row2>div{flex:1}
-  .seg{display:flex;gap:6px;background:var(--cream);padding:5px;border-radius:10px;border:1px solid var(--line)}
-  .seg button{flex:1;border:none;background:none;border-radius:7px;padding:9px;font-size:14px;cursor:pointer;color:var(--muted);font-family:inherit}
-  .seg button.on{background:var(--navy);color:#fff;font-weight:600}
-  .idseg button.on{background:var(--gold);color:var(--navy)}
+  .idshow{font-size:13px;color:var(--muted);margin-top:12px}
+  .idshow b{color:var(--navy)}
   .tabs{display:flex;gap:8px;margin:4px 0 16px}
   .tabs button{flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
   .tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -61,25 +59,21 @@
 </header>
 
 <div class="wrap">
-  <div class="banner" id="noUrl">⚠️ 还没填后端网址，暂时不能提交。请把考勤 Apps Script 的部署网址填进文件顶部的 SCRIPT_URL。</div>
+  <div class="banner" id="loadErr">⚠️ 名单载入失败，请下拉刷新或稍后再试。</div>
 
-  <!-- 身份 -->
+  <!-- 身份：选店 → 选名字（身份自动） -->
   <div class="card">
-    <label>姓名</label>
-    <input id="fName" placeholder="你的名字" autocomplete="off">
     <div class="row2">
       <div>
         <label>分店</label>
-        <select id="fStore"></select>
+        <select id="fStore" onchange="onStoreChange()"></select>
       </div>
       <div>
-        <label>身份</label>
-        <div class="seg idseg">
-          <button id="idNew" onclick="setIdentity('新人',this)">新人</button>
-          <button id="idOld" class="on" onclick="setIdentity('老员工',this)">老员工</button>
-        </div>
+        <label>姓名</label>
+        <select id="fName" onchange="onNameChange()"></select>
       </div>
     </div>
+    <div class="idshow" id="idShow">身份：—</div>
   </div>
 
   <!-- 排休 / 请假 切换 -->
@@ -123,54 +117,84 @@
 </div>
 
 <script>
-/* ======== 填这里：考勤 Apps Script 部署网址（建好后端拿到后贴进来）======== */
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUd2USgw1asp4iBKKUS6sznT45r0RcHdwyfMk52zh5ss85r4ij-yqwJtBQi8-aYgfXkw/exec";   /* ✅ 已填好 */
-/* ====================================================================== */
-
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUd2USgw1asp4iBKKUS6sznT45r0RcHdwyfMk52zh5ss85r4ij-yqwJtBQi8-aYgfXkw/exec";
 const STORES = ["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+const FLOAT = "机动";
 const LEAVE_TYPES = ["年假 Annual","病假 Medical","紧急事假 Emergency","无薪假 Unpaid","其他 Other"];
 const WD = ["日","一","二","三","四","五","六"];
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,"0");
 
+let roster = [];
 let identity = "老员工";
 let tab = "rest";
 let curMonth = thisMonth();
-let selected = new Set();      // 我这个月选的休假日（YYYY-MM-DD）
-let records = [];              // 服务器返回的该月全部考勤记录
+let selected = new Set();   // 我这个月选的休假日
+let records = [];           // 该月全部考勤记录
 
 function thisMonth(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function quotaN(){ return identity==="新人" ? 4 : 6; }
 
-/* ---- 初始化下拉 / 记住上次身份 ---- */
-(function init(){
-  STORES.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("fStore").appendChild(o); });
-  LEAVE_TYPES.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("lType").appendChild(o); });
-  try{
-    const p=JSON.parse(localStorage.getItem("halo_att_profile")||"null");
-    if(p){ if(p.name)$("fName").value=p.name; if(p.store)$("fStore").value=p.store;
-      if(p.identity){ identity=p.identity; setIdentity(identity, identity==="新人"?$("idNew"):$("idOld")); } }
-  }catch(e){}
-  $("lFrom").value=todayStr();
-  if(!SCRIPT_URL) $("noUrl").style.display="block";
-  $("fName").addEventListener("input",saveProfile);
-  $("fStore").addEventListener("change",()=>{ saveProfile(); fetchMonth(); });
-  fetchMonth();
-})();
+/* ---- 初始化 ---- */
+LEAVE_TYPES.forEach(function(s){ const o=document.createElement("option"); o.value=s; o.textContent=s; $("lType").appendChild(o); });
+$("lFrom").value=todayStr();
 
-function saveProfile(){
-  localStorage.setItem("halo_att_profile", JSON.stringify({name:$("fName").value.trim(), store:$("fStore").value, identity:identity}));
+fetch(SCRIPT_URL+"?roster=1&_="+Date.now())
+  .then(r=>r.json())
+  .then(function(res){
+    roster=(res&&res.roster)?res.roster:[];
+    buildStores();
+    restoreProfile();
+    fetchMonth();
+  })
+  .catch(function(){ $("loadErr").style.display="block"; });
+
+function buildStores(){
+  const present=[];
+  STORES.concat([FLOAT]).forEach(function(s){
+    if(roster.some(function(p){return p.store===s;})) present.push(s);
+  });
+  $("fStore").innerHTML="";
+  present.forEach(function(s){ const o=document.createElement("option"); o.value=s; o.textContent=s; $("fStore").appendChild(o); });
 }
-function setIdentity(v,btn){
-  identity=v;
-  document.querySelectorAll(".idseg button").forEach(b=>b.classList.remove("on"));
-  if(btn)btn.classList.add("on");
-  saveProfile(); renderQuota(); renderCal();
+function namesIn(store){ return roster.filter(function(p){return p.store===store;}); }
+function buildNames(){
+  const store=$("fStore").value;
+  $("fName").innerHTML="";
+  namesIn(store).forEach(function(p){ const o=document.createElement("option"); o.value=p.name; o.textContent=p.name; $("fName").appendChild(o); });
 }
+function curPerson(){ const n=$("fName").value; return roster.filter(function(p){return p.name===n && p.store===$("fStore").value;})[0]; }
+function applyIdentity(){
+  const p=curPerson();
+  identity = (p&&p.identity) ? p.identity : "老员工";
+  $("idShow").innerHTML="身份：<b>"+identity+"</b>（每月休 "+quotaN()+" 天）";
+}
+
+function restoreProfile(){
+  try{
+    const pf=JSON.parse(localStorage.getItem("halo_att_profile")||"null");
+    if(pf && pf.store && Array.prototype.some.call($("fStore").options,function(o){return o.value===pf.store;})){
+      $("fStore").value=pf.store;
+    }
+  }catch(e){}
+  buildNames();
+  try{
+    const pf=JSON.parse(localStorage.getItem("halo_att_profile")||"null");
+    if(pf && pf.name && Array.prototype.some.call($("fName").options,function(o){return o.value===pf.name;})){
+      $("fName").value=pf.name;
+    }
+  }catch(e){}
+  applyIdentity();
+}
+function saveProfile(){ localStorage.setItem("halo_att_profile", JSON.stringify({store:$("fStore").value, name:$("fName").value})); }
+
+function onStoreChange(){ buildNames(); applyIdentity(); saveProfile(); recompute(); renderQuota(); renderCal(); }
+function onNameChange(){ applyIdentity(); saveProfile(); recompute(); renderQuota(); renderCal(); }
+
 function setTab(t,btn){
   tab=t;
-  document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
+  document.querySelectorAll(".tabs button").forEach(function(b){b.classList.remove("on");});
   if(btn)btn.classList.add("on");
   $("paneRest").classList.toggle("hide", t!=="rest");
   $("paneLeave").classList.toggle("hide", t!=="leave");
@@ -178,31 +202,28 @@ function setTab(t,btn){
 
 /* ---- 月份 / 读取 ---- */
 function shiftMonth(d){
-  let [y,m]=curMonth.split("-").map(Number);
+  let a=curMonth.split("-").map(Number),y=a[0],m=a[1];
   m+=d; if(m<1){m=12;y--;} if(m>12){m=1;y++;}
   curMonth=y+"-"+pad(m);
   fetchMonth();
 }
+function recompute(){
+  selected=new Set();
+  const me=$("fName").value, st=$("fStore").value;
+  records.forEach(function(r){ if(r.kind==="rest" && r.name.trim()===me && r.store===st) selected.add(String(r.date).slice(0,10)); });
+}
 function fetchMonth(){
   $("mLabel").textContent=curMonth;
-  selected=new Set();
-  if(!SCRIPT_URL){ records=[]; renderQuota(); renderCal(); return; }
   fetch(SCRIPT_URL+"?month="+curMonth+"&_="+Date.now(),{cache:"no-store"})
     .then(r=>r.json())
-    .then(res=>{
-      records = (res&&res.records)?res.records:[];
-      // 预填：我自己这个月已提交的排休
-      const me=$("fName").value.trim(), st=$("fStore").value;
-      records.forEach(r=>{ if(r.kind==="rest" && r.name.trim()===me && r.store===st) selected.add(r.date); });
-      renderQuota(); renderCal();
-    })
-    .catch(()=>{ records=[]; renderQuota(); renderCal(); });
+    .then(function(res){ records=(res&&res.records)?res.records:[]; recompute(); renderQuota(); renderCal(); })
+    .catch(function(){ records=[]; recompute(); renderQuota(); renderCal(); });
 }
 
 /* ---- 渲染 ---- */
 function othersOff(dateStr){
-  const me=$("fName").value.trim(), st=$("fStore").value;
-  return records.filter(r=>r.kind==="rest" && r.store===st && r.date===dateStr && r.name.trim()!==me).length;
+  const me=$("fName").value, st=$("fStore").value;
+  return records.filter(function(r){return r.kind==="rest" && r.store===st && String(r.date).slice(0,10)===dateStr && r.name.trim()!==me;}).length;
 }
 function renderQuota(){
   const n=quotaN(), c=selected.size;
@@ -210,11 +231,11 @@ function renderQuota(){
   q.innerHTML="本月已选 <b>"+c+"</b> / "+n+" 天"+(c>n?"（已超出本月配额）":"");
 }
 function renderCal(){
-  const [y,m]=curMonth.split("-").map(Number);
-  const first=new Date(y,m-1,1).getDay();        // 0=周日
+  const a=curMonth.split("-").map(Number),y=a[0],m=a[1];
+  const first=new Date(y,m-1,1).getDay();
   const dim=new Date(y,m,0).getDate();
   let html="";
-  WD.forEach(w=>html+='<div class="wd">'+w+'</div>');
+  WD.forEach(function(w){html+='<div class="wd">'+w+'</div>';});
   for(let i=0;i<first;i++) html+='<div class="day blank"></div>';
   for(let d=1;d<=dim;d++){
     const ds=curMonth+"-"+pad(d);
@@ -240,22 +261,21 @@ function toggleDay(ds){
 
 /* ---- 提交 ---- */
 function need(){
-  const name=$("fName").value.trim(), store=$("fStore").value;
-  if(!name){ alert("请先填姓名"); return null; }
-  if(!SCRIPT_URL){ alert("还没填后端网址，无法提交"); return null; }
-  return {name, store, identity};
+  const name=$("fName").value, store=$("fStore").value;
+  if(!name){ alert("请先选姓名（先选分店，名字会自动出现）"); return null; }
+  return {name:name, store:store, identity:identity};
 }
 function submitRest(){
   const base=need(); if(!base) return;
   const btn=$("submitRest"), msg=$("restMsg");
   btn.disabled=true; msg.className="msg"; msg.textContent="提交中…";
   fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:JSON.stringify(Object.assign({kind:"rest",month:curMonth,days:[...selected]},base))})
+    body:JSON.stringify(Object.assign({kind:"rest",month:curMonth,days:Array.from(selected)},base))})
     .then(r=>r.json())
-    .then(res=>{ btn.disabled=false;
+    .then(function(res){ btn.disabled=false;
       if(res&&res.ok){ msg.className="msg ok"; msg.textContent="✅ 已提交本月排休（"+res.count+" 天）"; fetchMonth(); }
       else { msg.className="msg err"; msg.textContent="提交失败："+((res&&res.error)||"未知错误"); } })
-    .catch(()=>{ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
+    .catch(function(){ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
 }
 function submitLeave(){
   const base=need(); if(!base) return;
@@ -266,10 +286,10 @@ function submitLeave(){
   fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
     body:JSON.stringify(Object.assign({kind:"leave",leaveType:$("lType").value,from:from,to:to,reason:reason},base))})
     .then(r=>r.json())
-    .then(res=>{ btn.disabled=false;
+    .then(function(res){ btn.disabled=false;
       if(res&&res.ok){ msg.className="msg ok"; msg.textContent="✅ 已提交，待 HQ 审批"; $("lReason").value=""; }
       else { msg.className="msg err"; msg.textContent="提交失败："+((res&&res.error)||"未知错误"); } })
-    .catch(()=>{ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
+    .catch(function(){ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
 }
 </script>
 <script>try{Auth.decorate()}catch(e){}</script>
