@@ -103,8 +103,12 @@
 </div>
 
 <script>
-/* ====== 老板总览读数据:公开 CSV(实时,配合强制不缓存) ====== */
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
+/* ====== 老板总览读数据 ====== */
+/* 主:gviz 实时接口(几乎零延迟,CORS 友好);备:发布的公开 CSV */
+const SHEET_ID = "1xhe2cYBD5CYuOijUzsViY4cs1uWWsY9ohQbgvBbvtBI";
+const SHEET_GID = "1113972371";
+const GVIZ_URL = "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?gid="+SHEET_GID+"&tqx=out:csv";
+const CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1J5rlrDUdqGlGUxaaED8EqaN8yqVLmAsUKnoYr-Ab6zqTIMICaG5fj-sFFNIMAkVum/pub?gid=1113972371&single=true&output=csv";
 /* ============================================================ */
 
 const TX={
@@ -161,14 +165,24 @@ function genDemo(){
 }
 
 function load(){
-  if(!CSV_URL){allRows=genDemo();el('demoBanner').style.display='';render();return}
   el('demoBanner').style.display='none';
   const rb=el('refreshBtn'); if(rb)rb.textContent='⏳ …';
-  fetch(CSV_URL+'&_='+Date.now(),{cache:'no-store'})
-    .then(r=>r.text())
-    .then(txt=>{ allRows=parseCSV(txt); render(); stamp(); })
-    .catch(()=>{ allRows=genDemo(); el('demoBanner').style.display=''; render(); if(rb)rb.textContent='🔄 刷新'; });
+  // 先试 gviz 实时接口
+  fetchCsv(GVIZ_URL)
+    .then(txt=>{ if(!okData(txt))throw 0; allRows=parseCSV(txt); render(); stamp(); })
+    .catch(()=>{
+      // gviz 不行,退到公开 CSV
+      fetchCsv(CSV_URL)
+        .then(txt=>{ if(!okData(txt))throw 0; allRows=parseCSV(txt); render(); stamp(); })
+        .catch(()=>{ allRows=genDemo(); el('demoBanner').style.display=''; render(); if(rb)rb.textContent='🔄 刷新'; });
+    });
 }
+function fetchCsv(url){
+  return fetch(url+(url.indexOf('?')>-1?'&':'?')+'_='+Date.now(),{cache:'no-store'}).then(r=>{
+    if(!r.ok)throw 0; return r.text();
+  });
+}
+function okData(txt){ return txt && txt.indexOf('分店')>-1 && txt.split('\n').length>1; }
 function stamp(){
   const rb=el('refreshBtn'); if(rb)rb.textContent='🔄 刷新';
   const u=el('updatedAt');

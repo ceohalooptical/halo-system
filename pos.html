@@ -288,7 +288,12 @@ el('saleAmt').addEventListener('input',chk);
 function nowTime(){return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
 function toast(m){const t=el('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400)}
 
+var _saving=false;
 function saveTxn(){
+  if(_saving)return;
+  _saving=true;
+  el('saveBtn').disabled=true;
+  setTimeout(()=>{_saving=false;},2500);
   const k=VISIT_KEYS[selVisit];
   const pays=payLines.map(p=>({way:p.way,amt:parseFloat(p.amt)||0})).filter(p=>p.amt>0);
   const rec={
@@ -457,11 +462,15 @@ function pushToServer(rec){
     payTotal:rec.pays.reduce((s,p)=>s+p.amt,0),
     note:rec.note
   };
+  const sig=payload.date+'|'+payload.store+'|'+payload.staff+'|'+payload.sale+'|'+payload.payTotal+'|'+payload.note;
+  if(syncQueue.some(p=>(p.date+'|'+p.store+'|'+p.staff+'|'+p.sale+'|'+p.payTotal+'|'+p.note)===sig))return;
   syncQueue.push(payload);
   flushQueue();
 }
+var _flushing=false;
 function flushQueue(){
-  if(!SCRIPT_URL||!syncQueue.length)return;
+  if(!SCRIPT_URL||!syncQueue.length||_flushing)return;
+  _flushing=true;
   setDot('#EF9F27','同步中…');
   const batch=syncQueue.slice();
   fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -469,7 +478,8 @@ function flushQueue(){
     .then(r=>r.json()).then(res=>{
       if(res.status==='ok'){syncQueue=syncQueue.slice(batch.length);setDot('#1D9E75','已同步 ✓');}
       else{setDot('#D85A30','同步失败,稍后重试');}
-    }).catch(()=>{setDot('#D85A30','离线,稍后自动重试');});
+      _flushing=false;
+    }).catch(()=>{setDot('#D85A30','离线,稍后自动重试');_flushing=false;});
 }
 setInterval(flushQueue,15000);
 
