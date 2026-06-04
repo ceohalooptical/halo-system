@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Halo 登录</title>
+<script src="auth.js?v=2"></script>
 <style>
   :root{ --navy:#0B2447; --navy2:#0F2E5A; --gold:#D4A24C; --cream:#F5F1E8;
     --ink:#1F2937; --line:#E3DECF; --muted:#8A8678; --red:#D85A30; --ok:#1D9E75; }
@@ -17,23 +18,31 @@
   .sub{color:var(--muted);font-size:13px;text-align:center;margin-top:6px}
   .need{margin-top:18px;text-align:center;font-size:13px;color:var(--navy);
     background:var(--cream);border:1px solid var(--line);border-radius:10px;padding:9px}
+  .out{margin-top:18px;text-align:center;font-size:13px;color:var(--ok);
+    background:#E8F6EF;border:1px solid #B9E3CE;border-radius:10px;padding:9px}
   label{display:block;font-size:13px;color:var(--ink);font-weight:600;margin:24px 0 8px}
   input{width:100%;padding:14px;font-size:16px;border:1.5px solid var(--line);border-radius:12px;outline:none}
   input:focus{border-color:var(--gold)}
   .btn{width:100%;margin-top:20px;padding:15px;font-size:16px;font-weight:600;color:#fff;
     background:var(--navy);border:none;border-radius:12px;cursor:pointer}
   .btn:active{background:var(--navy2)}
+  .btn[disabled]{opacity:.6}
   .msg{margin-top:14px;font-size:13px;text-align:center;min-height:18px}
   .msg.err{color:var(--red)}
   .msg.ok{color:var(--ok)}
   .foot{margin-top:22px;text-align:center;font-size:12px;color:var(--muted);line-height:1.7}
   .foot a{color:var(--gold);text-decoration:none}
+  .gen{margin-top:16px;background:var(--cream);border:1px solid var(--line);border-radius:10px;padding:12px;
+    font-size:12px;word-break:break-all;line-height:1.6}
+  .gen b{color:var(--navy)} .gen code{color:#854F0B}
 </style>
 </head>
 <body>
   <div class="box">
     <div class="logo">HALO</div>
     <div class="sub">内部系统 · 请登录</div>
+
+    <div id="out" class="out" style="display:none">你已安全登出</div>
     <div id="need" class="need" style="display:none"></div>
 
     <div id="loginForm">
@@ -41,7 +50,7 @@
       <input id="pw" type="password" inputmode="text" placeholder="输入密码" autocomplete="off">
       <button class="btn" id="go">登录</button>
       <div id="msg" class="msg"></div>
-      <div class="foot">登录后这台设备会记住 7 天。<br>公用电脑用完请点 <a href="login.html?logout=1">退出登录</a>。</div>
+      <div class="foot">登录后这台设备会记住 7 天。<br>公用电脑用完请点右下角“登出”，或 <a href="login.html?logout=1">在此登出</a>。</div>
     </div>
 
     <div id="loggedIn" style="display:none">
@@ -49,68 +58,59 @@
       <button class="btn" id="enter">进入系统</button>
       <div class="foot"><a href="login.html?logout=1">退出 / 切换账号</a></div>
     </div>
+
+    <!-- 改密码小工具：访问 login.html?gen=新密码 时显示 -->
+    <div id="genBox" class="gen" style="display:none"></div>
   </div>
 
 <script>
-  // ========================================================
-  //  HALO 登录设置 —— 改密码只改下面这两行
-  //  注意：纯前端密码，懂技术的人查看源码能看到。够用于"挡普通人"。
-  // ========================================================
-  var PW_STAFF = "halo2026";      // 店员密码
-  var PW_BOSS  = "haloceo2026";   // 老板 / HQ 密码
-  var DAYS     = 7;               // 记住登录天数
-  var PAGES    = ["index.html","pos.html","dashboard.html"]; // 允许跳转的页面白名单
-  // ========================================================
-
   function qs(k){ return new URLSearchParams(location.search).get(k); }
-  function save(role){
-    localStorage.setItem("halo_auth", JSON.stringify({role:role, exp: Date.now()+DAYS*86400000}));
-  }
-  function current(){
-    try{ var a=JSON.parse(localStorage.getItem("halo_auth")||"null");
-      return (a && a.exp && Date.now()<a.exp) ? a : null; }catch(e){ return null; }
-  }
-  function safeNext(){
-    var n = qs("next") || "index.html";
-    return PAGES.indexOf(n) >= 0 ? n : "index.html";
-  }
+  function $(id){ return document.getElementById(id); }
+  var PAGES = (window.Auth && Auth.cfg && Auth.cfg.PAGES) || ["index.html","pos.html","dashboard.html"];
+  function safeNext(){ var n = qs("next") || "index.html"; return PAGES.indexOf(n) >= 0 && n!=="login.html" ? n : "index.html"; }
 
-  // 退出登录
-  if(qs("logout")==="1"){ localStorage.removeItem("halo_auth"); }
+  // 登出（?logout=1：清除后停留在登录页）
+  if (qs("logout")==="1" && window.Auth){ localStorage.removeItem(Auth.cfg.KEY); }
+  if (qs("out")==="1"){ $("out").style.display="block"; }
+
+  // 改密码工具：?gen=明文密码 -> 显示哈希
+  var gen = qs("gen");
+  if (gen && window.Auth){
+    $("loginForm").style.display="none";
+    Auth.hash(gen).then(function(h){
+      $("genBox").style.display="block";
+      $("genBox").innerHTML = '把下面这串哈希贴进 <b>auth.js</b> 的 HASH 里（staff 或 boss 任选其一）：<br><br>密码：<code>'+gen+'</code><br>哈希：<code>'+h+'</code>';
+    });
+  }
 
   var need = qs("need"); // "staff" / "boss" / null
-  if(need==="boss"){
-    var nEl=document.getElementById("need");
-    nEl.style.display="block";
-    nEl.textContent="此页面仅限 老板 / HQ 登录";
+  if (need==="boss"){ $("need").style.display="block"; $("need").textContent="此页面仅限 老板 / HQ 登录"; }
+
+  // 已登录 -> 显示“进入系统”
+  var cur = window.Auth ? Auth.current() : null;
+  if (cur && qs("logout")!=="1" && !gen && !(need==="boss" && cur.role!=="boss")){
+    $("loginForm").style.display="none";
+    $("loggedIn").style.display="block";
+    $("curRole").textContent = (cur.role==="boss") ? "老板 / HQ" : "店员";
+    $("enter").onclick=function(){ location.replace(safeNext()); };
   }
 
-  // 已经登录的情况
-  var cur = current();
-  if(cur && qs("logout")!=="1" && !(need==="boss" && cur.role!=="boss")){
-    document.getElementById("loginForm").style.display="none";
-    var li=document.getElementById("loggedIn");
-    li.style.display="block";
-    document.getElementById("curRole").textContent = (cur.role==="boss") ? "老板 / HQ" : "店员";
-    document.getElementById("enter").onclick=function(){ location.replace(safeNext()); };
-  }
-
-  function attempt(){
-    var v=document.getElementById("pw").value.trim();
-    var msg=document.getElementById("msg");
-    var role=null;
-    if(v===PW_BOSS) role="boss";
-    else if(v===PW_STAFF) role="staff";
-    if(!role){ msg.className="msg err"; msg.textContent="密码不对，再试一次"; return; }
+  async function attempt(){
+    var msg=$("msg"), btn=$("go");
+    var v=$("pw").value.trim();
+    if(!window.Auth){ msg.className="msg err"; msg.textContent="登录模块没加载，请刷新页面"; return; }
+    btn.disabled=true; msg.className="msg"; msg.textContent="验证中…";
+    var role = await Auth.login(v);
+    if(!role){ btn.disabled=false; msg.className="msg err"; msg.textContent="密码不对，再试一次"; return; }
     if(need==="boss" && role!=="boss"){
-      msg.className="msg err"; msg.textContent="这是老板专用页面，请用老板密码"; return;
+      localStorage.removeItem(Auth.cfg.KEY);
+      btn.disabled=false; msg.className="msg err"; msg.textContent="这是老板专用页面，请用老板密码"; return;
     }
-    save(role);
     msg.className="msg ok"; msg.textContent="登录成功，正在进入…";
     setTimeout(function(){ location.replace(safeNext()); }, 350);
   }
-  document.getElementById("go").onclick=attempt;
-  document.getElementById("pw").addEventListener("keydown",function(e){ if(e.key==="Enter") attempt(); });
+  if($("go")) $("go").onclick=attempt;
+  if($("pw")) $("pw").addEventListener("keydown",function(e){ if(e.key==="Enter") attempt(); });
 </script>
 </body>
 </html>

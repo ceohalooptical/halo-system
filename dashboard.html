@@ -4,20 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Halo 老板总览</title>
-<!-- ===== HALO 登录守卫 begin（勿删）===== -->
-<script>
-(function(){
-  var REQUIRE="boss"; // boss=只有老板可进（总览页锁死，防止直接打网址跳过首页）
-  try{
-    var a=JSON.parse(localStorage.getItem("halo_auth")||"null");
-    var ok=a&&a.exp&&Date.now()<a.exp;
-    if(ok&&REQUIRE==="boss"&&a.role!=="boss") ok=false;
-    if(!ok){ var p=encodeURIComponent((location.pathname.split("/").pop())||"index.html");
-      location.replace("login.html?next="+p+"&need="+REQUIRE); }
-  }catch(e){ location.replace("login.html"); }
-})();
-</script>
-<!-- ===== HALO 登录守卫 end ===== -->
+<script src="auth.js?v=2"></script>
+<script>try{Auth.guard("boss")}catch(e){location.replace("login.html")}</script>
 <style>
   :root{
     --navy:#0B2447; --navy2:#0F2E5A; --gold:#D4A24C; --cream:#F5F1E8;
@@ -37,6 +25,11 @@
   .seg{display:inline-flex;gap:6px;margin-bottom:18px;background:#fff;padding:5px;border-radius:10px;border:1px solid var(--line)}
   .seg button{border:none;background:none;border-radius:7px;padding:8px 20px;font-size:14px;cursor:pointer;font-family:inherit;color:var(--muted)}
   .seg button.on{background:var(--navy);color:#fff;font-weight:600}
+  .datectrl{margin-bottom:18px}
+  .pickers{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  .pickers input{background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+  .pickers input:focus{outline:none;border-color:var(--gold)}
+  .pickers .qbtn{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:12px;cursor:pointer;font-family:inherit}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
   .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px}
   .kpi .cap{font-size:13px;color:var(--muted)}
@@ -77,15 +70,26 @@
     <div class="ctrl">
       <span id="updatedAt" style="color:#9DB4D4;font-size:12px;margin-right:4px"></span>
       <button class="lang" id="refreshBtn" onclick="load()" style="margin-right:6px">🔄 刷新</button>
-      <input type="month" id="theMonth">
       <button class="lang" id="langBtn" onclick="toggleLang()">EN</button>
     </div>
   </header>
   <div class="body">
     <div class="banner" id="demoBanner">演示模式:正在显示样本数据。填入 Apps Script 网址后,这里会自动换成你九店的真实数据。</div>
-    <div class="seg">
-      <button class="on" id="sgDay" onclick="setScope('day',this)">今日</button>
-      <button id="sgMonth" onclick="setScope('month',this)">本月</button>
+    <div class="datectrl">
+      <div class="seg">
+        <button class="on" id="sgDay" onclick="setScope('day',this)">按日</button>
+        <button id="sgMonth" onclick="setScope('month',this)">按月</button>
+        <button id="sgRange" onclick="setScope('range',this)">区间</button>
+      </div>
+      <div class="pickers">
+        <input type="date" id="theDate">
+        <input type="month" id="theMonth" style="display:none">
+        <span id="rangeWrap" style="display:none">
+          <input type="date" id="theFrom"> <span style="color:var(--muted)">→</span> <input type="date" id="theTo">
+        </span>
+        <button class="qbtn" id="quickToday" onclick="quickToday()">回到今天</button>
+        <span id="periodLabel" style="color:var(--muted);font-size:13px;margin-left:2px"></span>
+      </div>
     </div>
 
     <div class="kpis" id="kpis"></div>
@@ -126,12 +130,12 @@ const CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvucrhkdlq2c1
 /* ============================================================ */
 
 const TX={
-  zh:{title:"HALO · 老板总览",day:"今日",month:"本月",stores:"各店业绩排行",
+  zh:{title:"HALO · 老板总览",day:"按日",month:"按月",range:"区间",quick:"回到今天",period:"查询",stores:"各店业绩排行",
     lumora:"Lumora 镜片(高毛利主力)",prod:"产品类别",src:"客人来源",
     kSale:"销售额",kColl:"收款额",kCust:"客户数",kPcs:"成交副数",
     pcs:"副",demo:"演示模式:正在显示样本数据。填入 Apps Script 网址后,这里会自动换成你九店的真实数据。",
     lumoraNote:"占总成交 P%"},
-  en:{title:"HALO · Owner Dashboard",day:"Today",month:"Month",stores:"Store ranking",
+  en:{title:"HALO · Owner Dashboard",day:"By day",month:"By month",range:"Range",quick:"Today",period:"Period",stores:"Store ranking",
     lumora:"Lumora lens (high-margin)",prod:"Product mix",src:"Source mix",
     kSale:"Sales",kColl:"Collection",kCust:"Customers",kPcs:"Units sold",
     pcs:"pcs",demo:"Demo mode: showing sample data. Once you paste the Apps Script URL, this switches to your live 9-store data.",
@@ -144,15 +148,42 @@ const STORES=["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang
 const PRODS=["Single Vision","Multifocal","隐形眼镜","儿童控度","太阳镜","纯配框","纯配片","FOC 公益","其他"];
 const SRCS=["线上","Google","Walk in","老客/转介","活动券"];
 
-function todayStr(){const d=new Date();return d.toISOString().slice(0,10)}
-function monthStr(){return new Date().toISOString().slice(0,7)}
+function pad(n){return String(n).padStart(2,'0')}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function monthStr(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)}
+function firstOfMonth(){return monthStr()+'-01'}
+el('theDate').value=todayStr();
 el('theMonth').value=monthStr();
+el('theFrom').value=firstOfMonth();
+el('theTo').value=todayStr();
 
 function toggleLang(){lang=lang==='zh'?'en':'zh';el('langBtn').textContent=lang==='zh'?'EN':'中';applyLang();render()}
-function applyLang(){const t=L();el('hTitle').textContent=t.title;el('sgDay').textContent=t.day;el('sgMonth').textContent=t.month;
+function applyLang(){const t=L();el('hTitle').textContent=t.title;el('sgDay').textContent=t.day;el('sgMonth').textContent=t.month;el('sgRange').textContent=t.range;el('quickToday').textContent=t.quick;
   el('ttlStores').textContent=t.stores;el('ttlLumora').textContent=t.lumora;el('ttlProd').textContent=t.prod;el('ttlSrc').textContent=t.src;
   el('demoBanner').textContent=t.demo;}
-function setScope(s,b){scope=s;document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render()}
+function setScope(s,b){
+  scope=s;
+  document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
+  if(b)b.classList.add('on');
+  el('theDate').style.display = s==='day'?'':'none';
+  el('theMonth').style.display = s==='month'?'':'none';
+  el('rangeWrap').style.display = s==='range'?'':'none';
+  render();
+}
+function quickToday(){
+  scope='day';
+  document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
+  el('sgDay').classList.add('on');
+  el('theDate').value=todayStr();
+  el('theDate').style.display='';el('theMonth').style.display='none';el('rangeWrap').style.display='none';
+  render();
+}
+function periodText(){
+  if(scope==='day')   return el('theDate').value || todayStr();
+  if(scope==='month') return el('theMonth').value || monthStr();
+  const f=el('theFrom').value, t=el('theTo').value;
+  return (f||'…')+' → '+(t||'…');
+}
 function fmt(n){return 'RM '+Math.round(n).toLocaleString('en-MY')}
 
 function genDemo(){
@@ -245,12 +276,21 @@ function splitCSV(txt){
   return rows;
 }
 
-function inScope(r){const m=el('theMonth').value;
-  if(scope==='month')return String(r['日期']).slice(0,7)===m;
-  return String(r['日期'])===todayStr();}
+function inScope(r){
+  const d=String(r['日期']).slice(0,10);
+  if(scope==='month') return d.slice(0,7)===el('theMonth').value;
+  if(scope==='range'){
+    const f=el('theFrom').value, t=el('theTo').value;
+    if(f && d<f) return false;
+    if(t && d>t) return false;
+    return !!(f||t);
+  }
+  return d===(el('theDate').value||todayStr());
+}
 
 function render(){
   const t=L();
+  el('periodLabel').textContent=t.period+'：'+periodText();
   const rows=allRows.filter(inScope);
   const sale=rows.reduce((s,r)=>s+(r['销售额']||0),0);
   const coll=rows.reduce((s,r)=>s+(r['收款合计']||0),0);
@@ -294,8 +334,9 @@ function brk(box,keys,data,field,cls){
   el(box).innerHTML=ks.length?ks.map(k=>`<div class="brk"><span>${k}</span><b>${agg[k]} ${L().pcs}</b></div><div class="prog ${cls}"><i style="width:${max?agg[k]/max*100:0}%"></i></div>`).join(''):'<div class="brk" style="color:var(--muted)">—</div>';
 }
 
-el('theMonth').addEventListener('change',load);
+['theDate','theMonth','theFrom','theTo'].forEach(function(id){el(id).addEventListener('change',render)});
 applyLang();load();
 </script>
+<script>try{Auth.decorate()}catch(e){}</script>
 </body>
 </html>
