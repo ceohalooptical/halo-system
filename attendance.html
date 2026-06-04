@@ -37,6 +37,7 @@
   .day{position:relative;aspect-ratio:1/1;border:1px solid var(--line);border-radius:9px;background:#fff;
     display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;user-select:none}
   .day.blank{border:none;background:none;cursor:default}
+  .day.clash{background:#FDEEE8;border-color:#F0C4B4}
   .day.sel{background:var(--gold);color:var(--navy);font-weight:700;border-color:var(--gold)}
   .day.today{box-shadow:inset 0 0 0 2px var(--navy)}
   .day .badge{position:absolute;top:2px;right:3px;font-size:10px;color:#fff;background:var(--red);
@@ -93,7 +94,7 @@
       <div class="quota" id="quota">本月已选 <b>0</b> / 6 天</div>
       <div class="cal" id="cal"></div>
       <div class="warn" id="coverWarn"></div>
-      <div class="hint">点日历上想休的日子（金色 = 已选）。右上角红数字 = 这天你店已有几人也申请休（系统只提醒，不硬挡）。老员工每月 6 天 / 新人 4 天。</div>
+      <div class="hint">点想休的日子（金色 = 你已选）。<b>淡红底 + 右上角红数字</b> = 这天你店已有同事申请休 / 请假；点下去会显示是谁。系统只提醒、不硬挡。老员工每月 6 天 / 新人 4 天。</div>
     </div>
     <button class="btn" id="submitRest" onclick="submitRest()">提交本月排休</button>
     <div class="msg" id="restMsg"></div>
@@ -221,9 +222,29 @@ function fetchMonth(){
 }
 
 /* ---- 渲染 ---- */
-function othersOff(dateStr){
-  const me=$("fName").value, st=$("fStore").value;
-  return records.filter(function(r){return r.kind==="rest" && r.store===st && String(r.date).slice(0,10)===dateStr && r.name.trim()!==me;}).length;
+function expandDates(label){
+  label=String(label||"").trim();
+  const parts=label.split("~").map(function(s){return s.trim().slice(0,10);});
+  const s=parts[0]; let e=parts[1]||parts[0];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return [];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(e)) e=s;
+  const sa=s.split("-").map(Number), ea=e.split("-").map(Number);
+  let y=sa[0],m=sa[1],d=sa[2]; const ey=ea[0],em=ea[1],ed=ea[2];
+  const out=[]; let g=0;
+  while(g++<400){ out.push(y+"-"+pad(m)+"-"+pad(d)); if(y===ey&&m===em&&d===ed) break;
+    d++; const dim=new Date(y,m,0).getDate(); if(d>dim){d=1;m++;if(m>12){m=1;y++;}}
+    if(y>ey||(y===ey&&m>em)||(y===ey&&m===em&&d>ed)) break; }
+  return out;
+}
+// 同分行、除自己以外，当天已申请休 / 请假的人（排休+请假都算）
+function othersOffList(dateStr){
+  const me=$("fName").value, st=$("fStore").value, out=[];
+  records.forEach(function(r){
+    if(r.store!==st || r.name.trim()===me) return;
+    if(r.kind==="rest" && String(r.date).slice(0,10)===dateStr) out.push(r.name.trim());
+    else if(r.kind==="leave" && expandDates(r.date).indexOf(dateStr)>=0) out.push(r.name.trim());
+  });
+  return out.filter(function(v,i){return out.indexOf(v)===i;});
 }
 function renderQuota(){
   const n=quotaN(), c=selected.size;
@@ -240,9 +261,9 @@ function renderCal(){
   for(let d=1;d<=dim;d++){
     const ds=curMonth+"-"+pad(d);
     const sel=selected.has(ds);
-    const off=othersOff(ds);
+    const off=othersOffList(ds).length;
     const isToday=ds===todayStr();
-    html+='<div class="day'+(sel?" sel":"")+(isToday?" today":"")+'" onclick="toggleDay(\''+ds+'\')">'
+    html+='<div class="day'+(sel?" sel":"")+(off>0?" clash":"")+(isToday?" today":"")+'" onclick="toggleDay(\''+ds+'\')">'
         + d + (off>0?'<span class="badge">'+off+'</span>':'') + '</div>';
   }
   $("cal").innerHTML=html;
@@ -251,9 +272,9 @@ function toggleDay(ds){
   if(selected.has(ds)) selected.delete(ds);
   else{
     selected.add(ds);
-    const off=othersOff(ds);
+    const others=othersOffList(ds);
     const w=$("coverWarn");
-    if(off>0){ w.style.display="block"; w.textContent="⚠️ "+ds+"：你店当天已有 "+off+" 人申请休。记得确保每天至少留 1 人上班。"; }
+    if(others.length>0){ w.style.display="block"; w.innerHTML="⚠️ <b>"+ds+"</b>：你店当天已有 <b>"+others.length+" 人</b>申请休 —— "+others.join("、")+"。当天可能没人看店，请斟酌。"; }
     else w.style.display="none";
   }
   renderQuota(); renderCal();
