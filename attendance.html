@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Halo 考勤</title>
+<script src="auth.js?v=2"></script>
+<script>try{Auth.guard("staff")}catch(e){location.replace("login.html")}</script>
+<style>
+  :root{--navy:#0B2447;--navy2:#0F2E5A;--gold:#D4A24C;--cream:#F5F1E8;
+    --ink:#1F2937;--line:#E3DECF;--muted:#8A8678;--ok:#1D9E75;--red:#D85A30;--blue:#185FA5;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    background:var(--cream);color:var(--ink);line-height:1.5;padding-bottom:90px}
+  header{background:var(--navy);padding:16px 20px;display:flex;align-items:center;gap:10px}
+  header a{color:#9DB4D4;text-decoration:none;font-size:13px}
+  header .ttl{color:var(--gold);font-size:17px;font-weight:700}
+  .wrap{max-width:560px;margin:0 auto;padding:18px 16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
+  label:first-child{margin-top:0}
+  input,select,textarea{width:100%;padding:12px;font-size:15px;border:1.5px solid var(--line);
+    border-radius:10px;outline:none;font-family:inherit;background:#fff;color:var(--ink)}
+  input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+  .row2{display:flex;gap:10px}.row2>div{flex:1}
+  .seg{display:flex;gap:6px;background:var(--cream);padding:5px;border-radius:10px;border:1px solid var(--line)}
+  .seg button{flex:1;border:none;background:none;border-radius:7px;padding:9px;font-size:14px;cursor:pointer;color:var(--muted);font-family:inherit}
+  .seg button.on{background:var(--navy);color:#fff;font-weight:600}
+  .idseg button.on{background:var(--gold);color:var(--navy)}
+  .tabs{display:flex;gap:8px;margin:4px 0 16px}
+  .tabs button{flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
+  .tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .monthnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .monthnav button{background:var(--cream);border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-size:16px;cursor:pointer}
+  .monthnav .m{font-size:16px;font-weight:700;color:var(--navy)}
+  .quota{font-size:14px;margin-bottom:10px}.quota b{font-size:16px}.quota.over b{color:var(--red)}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal .wd{text-align:center;font-size:12px;color:var(--muted);padding:4px 0}
+  .day{position:relative;aspect-ratio:1/1;border:1px solid var(--line);border-radius:9px;background:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;user-select:none}
+  .day.blank{border:none;background:none;cursor:default}
+  .day.sel{background:var(--gold);color:var(--navy);font-weight:700;border-color:var(--gold)}
+  .day.today{box-shadow:inset 0 0 0 2px var(--navy)}
+  .day .badge{position:absolute;top:2px;right:3px;font-size:10px;color:#fff;background:var(--red);
+    border-radius:8px;min-width:14px;height:14px;line-height:14px;text-align:center;padding:0 3px}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+  .warn{background:#FBF6EC;border:1px solid var(--gold);color:#854F0B;border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px;display:none}
+  .banner{background:#FCE9E1;border:1px solid var(--red);color:#9A3412;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
+  .btn{width:100%;padding:15px;font-size:16px;font-weight:700;color:#fff;background:var(--navy);
+    border:none;border-radius:12px;cursor:pointer;margin-top:6px}
+  .btn:active{background:var(--navy2)}.btn[disabled]{opacity:.55}
+  .msg{text-align:center;font-size:14px;margin-top:12px;min-height:20px}
+  .msg.ok{color:var(--ok)}.msg.err{color:var(--red)}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">‹ 首页</a>
+  <div class="ttl">考勤 · 排休 / 请假</div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="noUrl">⚠️ 还没填后端网址，暂时不能提交。请把考勤 Apps Script 的部署网址填进文件顶部的 SCRIPT_URL。</div>
+
+  <!-- 身份 -->
+  <div class="card">
+    <label>姓名</label>
+    <input id="fName" placeholder="你的名字" autocomplete="off">
+    <div class="row2">
+      <div>
+        <label>分店</label>
+        <select id="fStore"></select>
+      </div>
+      <div>
+        <label>身份</label>
+        <div class="seg idseg">
+          <button id="idNew" onclick="setIdentity('新人',this)">新人</button>
+          <button id="idOld" class="on" onclick="setIdentity('老员工',this)">老员工</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 排休 / 请假 切换 -->
+  <div class="tabs">
+    <button id="tabRest" class="on" onclick="setTab('rest',this)">排休</button>
+    <button id="tabLeave" onclick="setTab('leave',this)">请假</button>
+  </div>
+
+  <!-- 排休 -->
+  <div id="paneRest">
+    <div class="card">
+      <div class="monthnav">
+        <button onclick="shiftMonth(-1)">‹</button>
+        <div class="m" id="mLabel"></div>
+        <button onclick="shiftMonth(1)">›</button>
+      </div>
+      <div class="quota" id="quota">本月已选 <b>0</b> / 6 天</div>
+      <div class="cal" id="cal"></div>
+      <div class="warn" id="coverWarn"></div>
+      <div class="hint">点日历上想休的日子（金色 = 已选）。右上角红数字 = 这天你店已有几人也申请休（系统只提醒，不硬挡）。老员工每月 6 天 / 新人 4 天。</div>
+    </div>
+    <button class="btn" id="submitRest" onclick="submitRest()">提交本月排休</button>
+    <div class="msg" id="restMsg"></div>
+  </div>
+
+  <!-- 请假 -->
+  <div id="paneLeave" class="hide">
+    <div class="card">
+      <label>请假类型</label>
+      <select id="lType"></select>
+      <div class="row2">
+        <div><label>开始日期</label><input type="date" id="lFrom"></div>
+        <div><label>结束日期（同一天可不填）</label><input type="date" id="lTo"></div>
+      </div>
+      <label>原因</label>
+      <textarea id="lReason" rows="3" placeholder="简单说明，例如：回乡 / 看医生"></textarea>
+    </div>
+    <button class="btn" id="submitLeave" onclick="submitLeave()">提交请假（待 HQ 审批）</button>
+    <div class="msg" id="leaveMsg"></div>
+  </div>
+</div>
+
+<script>
+/* ======== 填这里：考勤 Apps Script 部署网址（建好后端拿到后贴进来）======== */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUd2USgw1asp4iBKKUS6sznT45r0RcHdwyfMk52zh5ss85r4ij-yqwJtBQi8-aYgfXkw/exec";   /* ✅ 已填好 */
+/* ====================================================================== */
+
+const STORES = ["Iconic Point","Juru One City","Bukit Minyak","Icon City","Machang Bubok","Kulim","Kepong","Melaka","Kulai"];
+const LEAVE_TYPES = ["年假 Annual","病假 Medical","紧急事假 Emergency","无薪假 Unpaid","其他 Other"];
+const WD = ["日","一","二","三","四","五","六"];
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+
+let identity = "老员工";
+let tab = "rest";
+let curMonth = thisMonth();
+let selected = new Set();      // 我这个月选的休假日（YYYY-MM-DD）
+let records = [];              // 服务器返回的该月全部考勤记录
+
+function thisMonth(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function quotaN(){ return identity==="新人" ? 4 : 6; }
+
+/* ---- 初始化下拉 / 记住上次身份 ---- */
+(function init(){
+  STORES.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("fStore").appendChild(o); });
+  LEAVE_TYPES.forEach(s=>{ const o=document.createElement("option"); o.value=s; o.textContent=s; $("lType").appendChild(o); });
+  try{
+    const p=JSON.parse(localStorage.getItem("halo_att_profile")||"null");
+    if(p){ if(p.name)$("fName").value=p.name; if(p.store)$("fStore").value=p.store;
+      if(p.identity){ identity=p.identity; setIdentity(identity, identity==="新人"?$("idNew"):$("idOld")); } }
+  }catch(e){}
+  $("lFrom").value=todayStr();
+  if(!SCRIPT_URL) $("noUrl").style.display="block";
+  $("fName").addEventListener("input",saveProfile);
+  $("fStore").addEventListener("change",()=>{ saveProfile(); fetchMonth(); });
+  fetchMonth();
+})();
+
+function saveProfile(){
+  localStorage.setItem("halo_att_profile", JSON.stringify({name:$("fName").value.trim(), store:$("fStore").value, identity:identity}));
+}
+function setIdentity(v,btn){
+  identity=v;
+  document.querySelectorAll(".idseg button").forEach(b=>b.classList.remove("on"));
+  if(btn)btn.classList.add("on");
+  saveProfile(); renderQuota(); renderCal();
+}
+function setTab(t,btn){
+  tab=t;
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
+  if(btn)btn.classList.add("on");
+  $("paneRest").classList.toggle("hide", t!=="rest");
+  $("paneLeave").classList.toggle("hide", t!=="leave");
+}
+
+/* ---- 月份 / 读取 ---- */
+function shiftMonth(d){
+  let [y,m]=curMonth.split("-").map(Number);
+  m+=d; if(m<1){m=12;y--;} if(m>12){m=1;y++;}
+  curMonth=y+"-"+pad(m);
+  fetchMonth();
+}
+function fetchMonth(){
+  $("mLabel").textContent=curMonth;
+  selected=new Set();
+  if(!SCRIPT_URL){ records=[]; renderQuota(); renderCal(); return; }
+  fetch(SCRIPT_URL+"?month="+curMonth+"&_="+Date.now(),{cache:"no-store"})
+    .then(r=>r.json())
+    .then(res=>{
+      records = (res&&res.records)?res.records:[];
+      // 预填：我自己这个月已提交的排休
+      const me=$("fName").value.trim(), st=$("fStore").value;
+      records.forEach(r=>{ if(r.kind==="rest" && r.name.trim()===me && r.store===st) selected.add(r.date); });
+      renderQuota(); renderCal();
+    })
+    .catch(()=>{ records=[]; renderQuota(); renderCal(); });
+}
+
+/* ---- 渲染 ---- */
+function othersOff(dateStr){
+  const me=$("fName").value.trim(), st=$("fStore").value;
+  return records.filter(r=>r.kind==="rest" && r.store===st && r.date===dateStr && r.name.trim()!==me).length;
+}
+function renderQuota(){
+  const n=quotaN(), c=selected.size;
+  const q=$("quota"); q.classList.toggle("over", c>n);
+  q.innerHTML="本月已选 <b>"+c+"</b> / "+n+" 天"+(c>n?"（已超出本月配额）":"");
+}
+function renderCal(){
+  const [y,m]=curMonth.split("-").map(Number);
+  const first=new Date(y,m-1,1).getDay();        // 0=周日
+  const dim=new Date(y,m,0).getDate();
+  let html="";
+  WD.forEach(w=>html+='<div class="wd">'+w+'</div>');
+  for(let i=0;i<first;i++) html+='<div class="day blank"></div>';
+  for(let d=1;d<=dim;d++){
+    const ds=curMonth+"-"+pad(d);
+    const sel=selected.has(ds);
+    const off=othersOff(ds);
+    const isToday=ds===todayStr();
+    html+='<div class="day'+(sel?" sel":"")+(isToday?" today":"")+'" onclick="toggleDay(\''+ds+'\')">'
+        + d + (off>0?'<span class="badge">'+off+'</span>':'') + '</div>';
+  }
+  $("cal").innerHTML=html;
+}
+function toggleDay(ds){
+  if(selected.has(ds)) selected.delete(ds);
+  else{
+    selected.add(ds);
+    const off=othersOff(ds);
+    const w=$("coverWarn");
+    if(off>0){ w.style.display="block"; w.textContent="⚠️ "+ds+"：你店当天已有 "+off+" 人申请休。记得确保每天至少留 1 人上班。"; }
+    else w.style.display="none";
+  }
+  renderQuota(); renderCal();
+}
+
+/* ---- 提交 ---- */
+function need(){
+  const name=$("fName").value.trim(), store=$("fStore").value;
+  if(!name){ alert("请先填姓名"); return null; }
+  if(!SCRIPT_URL){ alert("还没填后端网址，无法提交"); return null; }
+  return {name, store, identity};
+}
+function submitRest(){
+  const base=need(); if(!base) return;
+  const btn=$("submitRest"), msg=$("restMsg");
+  btn.disabled=true; msg.className="msg"; msg.textContent="提交中…";
+  fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(Object.assign({kind:"rest",month:curMonth,days:[...selected]},base))})
+    .then(r=>r.json())
+    .then(res=>{ btn.disabled=false;
+      if(res&&res.ok){ msg.className="msg ok"; msg.textContent="✅ 已提交本月排休（"+res.count+" 天）"; fetchMonth(); }
+      else { msg.className="msg err"; msg.textContent="提交失败："+((res&&res.error)||"未知错误"); } })
+    .catch(()=>{ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
+}
+function submitLeave(){
+  const base=need(); if(!base) return;
+  const from=$("lFrom").value, to=$("lTo").value||from, reason=$("lReason").value.trim();
+  if(!from){ alert("请选开始日期"); return; }
+  const btn=$("submitLeave"), msg=$("leaveMsg");
+  btn.disabled=true; msg.className="msg"; msg.textContent="提交中…";
+  fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(Object.assign({kind:"leave",leaveType:$("lType").value,from:from,to:to,reason:reason},base))})
+    .then(r=>r.json())
+    .then(res=>{ btn.disabled=false;
+      if(res&&res.ok){ msg.className="msg ok"; msg.textContent="✅ 已提交，待 HQ 审批"; $("lReason").value=""; }
+      else { msg.className="msg err"; msg.textContent="提交失败："+((res&&res.error)||"未知错误"); } })
+    .catch(()=>{ btn.disabled=false; msg.className="msg err"; msg.textContent="网络错误，稍后再试"; });
+}
+</script>
+<script>try{Auth.decorate()}catch(e){}</script>
+</body>
+</html>
