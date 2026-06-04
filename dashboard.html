@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Halo 老板总览</title>
+<!-- ===== HALO 登录守卫 begin（勿删）===== -->
+<script>
+(function(){
+  var REQUIRE="boss"; // boss=只有老板可进（总览页锁死，防止直接打网址跳过首页）
+  try{
+    var a=JSON.parse(localStorage.getItem("halo_auth")||"null");
+    var ok=a&&a.exp&&Date.now()<a.exp;
+    if(ok&&REQUIRE==="boss"&&a.role!=="boss") ok=false;
+    if(!ok){ var p=encodeURIComponent((location.pathname.split("/").pop())||"index.html");
+      location.replace("login.html?next="+p+"&need="+REQUIRE); }
+  }catch(e){ location.replace("login.html"); }
+})();
+</script>
+<!-- ===== HALO 登录守卫 end ===== -->
 <style>
   :root{
     --navy:#0B2447; --navy2:#0F2E5A; --gold:#D4A24C; --cream:#F5F1E8;
